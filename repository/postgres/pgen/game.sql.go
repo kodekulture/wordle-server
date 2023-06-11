@@ -54,27 +54,31 @@ func (q *Queries) GamePlayers(ctx context.Context, gameID pgtype.UUID) ([]GamePl
 }
 
 const playerGames = `-- name: PlayerGames :many
-SELECT g.id, g.creator, g.correct_word, g.created_at, g.started_at, g.ended_at, gp.player_id, gp.played_words, gp.correct_guesses, gp.correct_guesses_time, gp.finished
+SELECT g.id, g.correct_word, g.created_at, g.started_at, g.ended_at, 
+  p.id AS creator_id, p.username AS creator_username,
+  gp.player_id, gp.played_words, gp.correct_guesses, gp.correct_guesses_time, gp.finished
 FROM game g
 JOIN game_player gp ON g.id = gp.game_id
+JOIN player p ON g.creator = p.id
 WHERE gp.player_id = $1
 ORDER BY gp.finished DESC
-LIMIT $2 OFFSET $3
+LIMIT $3 OFFSET $2
 `
 
 type PlayerGamesParams struct {
 	PlayerID int32
-	Limit    int32
 	Offset   int32
+	Limit    pgtype.Int4
 }
 
 type PlayerGamesRow struct {
 	ID                 pgtype.UUID
-	Creator            int32
 	CorrectWord        string
 	CreatedAt          pgtype.Timestamptz
 	StartedAt          pgtype.Timestamptz
 	EndedAt            pgtype.Timestamptz
+	CreatorID          int32
+	CreatorUsername    string
 	PlayerID           int32
 	PlayedWords        []byte
 	CorrectGuesses     pgtype.Int4
@@ -83,7 +87,7 @@ type PlayerGamesRow struct {
 }
 
 func (q *Queries) PlayerGames(ctx context.Context, arg PlayerGamesParams) ([]PlayerGamesRow, error) {
-	rows, err := q.db.Query(ctx, playerGames, arg.PlayerID, arg.Limit, arg.Offset)
+	rows, err := q.db.Query(ctx, playerGames, arg.PlayerID, arg.Offset, arg.Limit)
 	if err != nil {
 		return nil, err
 	}
@@ -93,11 +97,12 @@ func (q *Queries) PlayerGames(ctx context.Context, arg PlayerGamesParams) ([]Pla
 		var i PlayerGamesRow
 		if err := rows.Scan(
 			&i.ID,
-			&i.Creator,
 			&i.CorrectWord,
 			&i.CreatedAt,
 			&i.StartedAt,
 			&i.EndedAt,
+			&i.CreatorID,
+			&i.CreatorUsername,
 			&i.PlayerID,
 			&i.PlayedWords,
 			&i.CorrectGuesses,
