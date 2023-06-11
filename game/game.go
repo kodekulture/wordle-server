@@ -1,9 +1,10 @@
 package game
 
 import (
-	"sort"
+	"sync"
 	"time"
-	"wordle/cmd/game/word"
+
+	"github.com/Chat-Map/wordle-server/game/word"
 
 	"github.com/google/uuid"
 )
@@ -18,39 +19,52 @@ const (
 	// WordLength is the length of the word to be guessed
 )
 
-// Player is the interface that represents a player in the game
-type Player interface {
-	PID() string
-	PName() string
+type GameStatus int
+
+const (
+	Created GameStatus = iota
+	Started
+	Finished
+)
+
+var Hub struct {
+	mu    sync.RWMutex // protects the games map
+	games map[uuid.UUID]*Game
+}
+
+func init() {
+	Hub.games = make(map[uuid.UUID]*Game)
 }
 
 type Game struct {
 	ID          uuid.UUID
-	CreatorID   string     // the id of the player who created the game, this is low priority for now
-	InviteID    string     // the id of the lobby used to play this game
-	CorrectWord word.Word  // the correct word that should be guessed
-	Sessions    []*Session // each player's game state, points, position
-	PlayerCount int        // the number of players in the game
-	finished    int        // the number of players who have finished the game by guessing the correct word
-	StartTime   time.Time  // the time the game started
-
-	// EndTime is the time the game ended,
-	// when the value is nil, this means the game has not ended
-	EndTime *time.Time
+	Creator     string              // the username of the player who created the game, only this user can start the game
+	CorrectWord word.Word           // the correct word that should be guessed
+	Sessions    map[string]*Session // each player's game state, points, position
+	finished    int                 // the number of players who have finished the game by guessing the correct word
+	CreatedAt   time.Time           // the time the game created
+	StartedAt   *time.Time          // the time the game started, when the value is nil, this means the game has not started
+	EndedAt     *time.Time          // EndTime is the time the game ended, when the value is nil, this means the game has not ended
 }
 
-func New(roomID string, players []Player, correctWord word.Word) *Game {
-	sessions := make([]*Session, len(players))
-	for i, p := range players {
-		sessions[i] = NewSession(p)
-	}
+func (g *Game) Start() {
+	now := time.Now()
+	g.StartedAt = &now
+	// Initialize the sessions
+}
+
+// Join is used to enter a game before it starts
+func (g *Game) Join(username string) {
+	g.Sessions[username] = &Session{}
+}
+
+func New(username string, correctWord word.Word) *Game {
 	return &Game{
 		ID:          uuid.New(),
-		StartTime:   time.Now(),
+		CreatedAt:   time.Now(),
 		CorrectWord: correctWord,
-		InviteID:    roomID,
-		PlayerCount: len(players),
-		Sessions:    sessions,
+		Creator:     username,
+		Sessions:    make(map[string]*Session),
 	}
 }
 
@@ -58,65 +72,31 @@ func New(roomID string, players []Player, correctWord word.Word) *Game {
 // It returns a boolean indicating whether the guess changed the game state / the session of the player who played the word.
 //
 // Play also sets the EndTime of the game if the game has ended for every player.
-func (g *Game) Play(player Player, guess word.Word) bool {
-	for _, s := range g.Sessions {
-		if s.Player.PID() == player.PID() { // found the player
-			if s.Ended() { // game has ended, no need to add more guesses
-				return false
-			}
-			guess.PlayedAt.Scan(time.Now().UTC())
-			guess.CompareTo(g.CorrectWord)
-			s.Guesses = append(s.Guesses, guess)
-			if guess.Correct() {
-				g.finished++
-				if g.finished == g.PlayerCount {
-					now := time.Now()
-					g.EndTime = &now // game is over when everyone has finished guessing the word or have failed to guess the word
-				}
-			}
-			return true
+func (g *Game) Play(player string, guess word.Word) bool {
+	session := g.Sessions[player]
+	if session == nil {
+		return false // TODO: player not found
+	}
+
+	if session.Ended() { // game has ended, no need to add more guesses
+		return false
+	}
+	guess.PlayedAt.Scan(time.Now().UTC())
+	guess.CompareTo(g.CorrectWord)
+	session.Guesses = append(session.Guesses, guess)
+	if guess.Correct() {
+		g.finished++
+		if g.finished == len(g.Sessions) {
+			now := time.Now()
+			g.EndedAt = &now // game is over when everyone has finished guessing the word or have failed to guess the word
 		}
 	}
-	return false // player not found
-}
-
-// TODO: implement this
-func (g *Game) Result() []Player {
-	sort.Slice(g.Sessions, func(i, j int) bool {
-		a, b := g.Sessions[i], g.Sessions[j]
-		if a.Won() && !b.Won() {
-			return true
-		} else if !a.Won() && b.Won() {
-			return false
-		} else {
-			return len(a.Guesses) < len(b.Guesses)
-		}
-	})
-	players := make([]Player, len(g.Sessions))
-	for i, s := range g.Sessions {
-		players[i] = s.Player
-	}
-	return players
-}
-
-// HasEnded Game if the Game.EndTime is set OR if the game has been active for an hour
-// Ended games do not receive rewards after completed Sessions and penalties are applied
-// to all sessions immediately after Game has ended.
-// or if they have guessed the word correctly
-func (g *Game) HasEnded() bool {
-	return g.EndTime != nil && g.EndTime.After(g.StartTime.Add(MaxDuration))
+	return true
 }
 
 // Session holds the state of a player's game session.
 type Session struct {
-	Player  Player
 	Guesses []word.Word
-}
-
-func NewSession(player Player) *Session {
-	return &Session{
-		Player: player,
-	}
 }
 
 // Won returns true if the last guess is correct
@@ -132,5 +112,3 @@ func (s *Session) Won() bool {
 func (s *Session) Ended() bool {
 	return len(s.Guesses) == MaxGuesses || s.Won()
 }
-
-// TODO: replace []*Session with PlayerSessions that uses a heap to keep track of the player with the most points
