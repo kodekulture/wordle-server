@@ -2,12 +2,12 @@
 
 ## Sections
 
-- [Logic](https://github.com/Chat-Map/wordle-server/#logic)
-- [Data](https://github.com/Chat-Map/wordle-server/#data)
-- [Struct](https://github.com/Chat-Map/wordle-server/#struct)
-- [Endpoint](https://github.com/Chat-Map/wordle-server/#struct)
-- [Websocket](https://github.com/Chat-Map/wordle-server/#websockets)
-- [Future Game Modes](https://github.com/Chat-Map/wordle-server/#websockets)
+- [Logic](#logic-)
+- [Data](#data-)
+- [Struct](#struct-)
+- [Endpoint](#struct-)
+- [Websocket](#websockets-)
+- [Future Game Modes](#websockets-)
 
 ## Logic 🧠
 
