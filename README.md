@@ -7,8 +7,8 @@
     * Frontend should display results
 
 * Else:
-  * Connect to [WS] /live
-  * If the session has not ended: User has access to /play
+  * Connect to [[WS] /live](#ws-liveplayerroom)
+  * If the session has not ended: User has access to [server/play](#wse-serverplay)
 
 ## Data
 
@@ -87,15 +87,20 @@
     * The player is reconnected if he is an original member of the room
 * Else:
     * Player is uniquely added to the room
-* client/message: `{USERNAME} has joined the lobby`
+* [client/message](#wse-clientmessage): `{USERNAME} has joined the lobby`
 
 ### [WSE] server/message
-
 * Broadcasts a message to everyone in the lobby
 * Fields:
     * Sender: <playerUsername>
     * Message
 
+### [WSE] client/message
+
+* Server sends a message to all clients in the lobby (client should listen to this event to update the message box)
+* Fields:
+    * Sender: <playerUsername>
+    * Message
 
 ### [WSE] server/play
 
@@ -111,7 +116,7 @@
 
 ### [WSE] client/result
 
-* Returns the result of a `server/play` to show the result of a played word.
+* Returns the result of a `server/play` to the SENDER ONLY to show the result of a played word.
 
 ### [WSE] client/data
 
