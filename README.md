@@ -1,6 +1,15 @@
 # Wordle Server
 
-## Logic
+## Sections
+
+- [Logic](https://github.com/Chat-Map/wordle-server/#logic)
+- [Data](https://github.com/Chat-Map/wordle-server/#data)
+- [Struct](https://github.com/Chat-Map/wordle-server/#struct)
+- [Endpoint](https://github.com/Chat-Map/wordle-server/#struct)
+- [Websocket](https://github.com/Chat-Map/wordle-server/#websockets)
+- [Future Game Modes](https://github.com/Chat-Map/wordle-server/#websockets)
+
+## Logic 🧠
 
 * Each event should be in a particular format, `server/<action>` and `client/<action>`. The former describes actions sent to the server, while the latter describes actions sent to the client.
 * If the game has ended:
@@ -10,7 +19,7 @@
   * Connect to [[WS] /live](#ws-liveplayerroom)
   * If the session has not ended: User has access to [server/play](#wse-serverplay)
 
-## Data
+## Data 🗃
 
 * The game requires two memory areas. (Permanent) and (Temporary)
 
@@ -28,7 +37,7 @@
 * It performs the write to the permanent storage when the game has ended.
 
 
-## Struct
+## Struct 💾
 
 * **Session**: contains the progress for a single user in a game (session ended means I am done with the current game, **BUT **others might still be playing)
     * Username
@@ -37,7 +46,7 @@
     * Submission time of max Guessed letters
 * **Game**: contains the progress of everyone in the game
 
-## Endpoints 
+## Endpoints 🌐
 
 ### [POST] /login
 
@@ -74,7 +83,7 @@
   * Submitted words (For this specific user)
   * All the game details (Finished, players (usernames)
 
-## Websockets
+## Websockets 🚀
 
 ### [WS] /live?token=xxxx
 
@@ -132,7 +141,7 @@
 * Users receives a `Session` object to update leaderboard
 
 
-# FUTURE GAME MODES
+# Future Game Modes ✨
 
 * Sprint mode: Unlimited trials (shortest time to guess a word is only used to determine the winner of this game mode)
 * Wizard mode: (the smallest trials to guess a word wins, when there is a tie, the first to get the smallest trials win).
