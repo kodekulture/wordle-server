@@ -246,6 +246,15 @@ func (r *Room) sendAll(payload Payload) {
 		delete(r.players, p)
 		p.Close()
 	}
+	go func() {
+		// Notify users about kicked players
+		for p := range r.players {
+			for _, kp := range errs {
+				text := fmt.Sprintf("%s has left", kp.PName())
+				p.write(newPayload(CLeave, text, ""))
+			}
+		}
+	}()
 }
 
 // Player represents a player in the game.
