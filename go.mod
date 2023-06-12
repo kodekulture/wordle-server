@@ -29,4 +29,6 @@ require (
 	golang.org/x/text v0.9.0 // indirect
 	golang.org/x/xerrors v0.0.0-20200804184101-5ec99f83aff1 // indirect
 	google.golang.org/grpc v1.51.0 // indirect
+	github.com/gorilla/mux v1.8.0
+	github.com/gorilla/websocket v1.5.0
 )

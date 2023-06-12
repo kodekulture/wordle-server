@@ -150,10 +150,3 @@ func (h *Handler) room(w http.ResponseWriter, r *http.Request) {
 	// 2. get the room id from the url params
 	// 3. return the game details for this room as well as the words this user played in this game
 }
-func (h *Handler) live(w http.ResponseWriter, r *http.Request) {
-	// TODO:
-	// 1. get the parameters from the url
-	// 2. check the token to get the user's details
-	// 3. upgrade the connection to websocket
-	// 4. create a new connection for this user and add him to the room in the hub
-}
