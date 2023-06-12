@@ -55,6 +55,3 @@ func (h *Handler) rooms(w http.ResponseWriter, r *http.Request) {
 func (h *Handler) room(w http.ResponseWriter, r *http.Request) {
 	panic("not implemented")
 }
-func (h *Handler) live(w http.ResponseWriter, r *http.Request) {
-	panic("not implemented")
-}
