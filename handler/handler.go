@@ -4,17 +4,26 @@ import (
 	"net/http"
 
 	"github.com/go-chi/chi/v5"
+	"github.com/lordvidex/x/auth"
 	"github.com/lordvidex/x/req"
 	"github.com/lordvidex/x/resp"
+
+	"github.com/Chat-Map/wordle-server/game"
+	"github.com/Chat-Map/wordle-server/handler/token"
+	"github.com/Chat-Map/wordle-server/service"
 )
 
 type Handler struct {
 	router chi.Router
+	srv    *service.Service
+	token  token.Handler
 }
 
-func New() *Handler {
+func New(srv *service.Service, tokenHandler token.Handler) *Handler {
 	h := &Handler{
 		router: chi.NewRouter(),
+		srv:    srv,
+		token:  tokenHandler,
 	}
 
 	h.setup()
@@ -36,7 +45,8 @@ func (h *Handler) setup() {
 
 	// Private routes
 	r.Group(func(r chi.Router) {
-		// add authentication middleware
+		r.Use(h.authMiddleware(AuthDecodeTypeFetch))
+
 		r.Post("/create/room", h.createRoom)
 		r.Get("/join/room/{id}", h.joinRoom)
 		r.Get("/room", h.rooms)
@@ -50,6 +60,10 @@ type loginParams struct {
 	Password string `json:"password" validate:"required"`
 }
 
+type loginResponse struct {
+	Token string `json:"token"`
+}
+
 func (h *Handler) login(w http.ResponseWriter, r *http.Request) {
 	var payload loginParams
 	defer r.Body.Close()
@@ -57,7 +71,24 @@ func (h *Handler) login(w http.ResponseWriter, r *http.Request) {
 		resp.Error(w, err)
 		return
 	}
-	// TODO: call login service
+
+	// try finding the user
+	var (
+		player *game.Player
+		err    error
+		token  auth.Token
+	)
+	if player, err = h.srv.GetPlayer(r.Context(), payload.Username); err != nil {
+		resp.Error(w, err)
+		return
+	}
+	if token, err = h.token.Generate(r.Context(), *player); err != nil {
+		resp.Error(w, err)
+		return
+	}
+	result := loginResponse{Token: string(token)}
+	resp.JSON(w, result)
+
 }
 func (h *Handler) register(w http.ResponseWriter, r *http.Request) {
 	var payload loginParams
@@ -66,8 +97,24 @@ func (h *Handler) register(w http.ResponseWriter, r *http.Request) {
 		resp.Error(w, err)
 		return
 	}
-	// TODO: call register service
+	ctx := r.Context()
+	player := game.Player{Username: payload.Username, Password: payload.Password}
+	if err := h.srv.CreatePlayer(ctx, &player); err != nil {
+		resp.Error(w, err)
+		return
+	}
+	var (
+		token auth.Token
+		err   error
+	)
+	if token, err = h.token.Generate(ctx, player); err != nil {
+		resp.Error(w, err)
+		return
+	}
+	result := loginResponse{Token: string(token)}
+	resp.JSON(w, result)
 }
+
 func (h *Handler) createRoom(w http.ResponseWriter, r *http.Request) {
 	// TODO:
 	// 1. get the user from the context
@@ -85,9 +132,17 @@ func (h *Handler) joinRoom(w http.ResponseWriter, r *http.Request) {
 	// 4b. if room exists, return a token for the user to join the room with ws
 }
 func (h *Handler) rooms(w http.ResponseWriter, r *http.Request) {
-	// TODO:
-	// 1. get the user from the context
-	// 2. return all the rooms for this user sorted by finished time (NULLS first)
+	ctx := r.Context()
+	player := Player(ctx)
+	if player == nil {
+		resp.Error(w, ErrUnauthenticated)
+		return
+	}
+	rooms, err := h.srv.GetPlayerRooms(ctx, player.ID)
+	if err != nil {
+		resp.Error(w, err)
+	}
+	resp.JSON(w, rooms) // TODO: create separate response type for this
 }
 func (h *Handler) room(w http.ResponseWriter, r *http.Request) {
 	// TODO:
