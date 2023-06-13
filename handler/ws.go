@@ -14,14 +14,11 @@ import (
 
 var Hub struct {
 	rooms map[uuid.UUID]*Room
-	users map[string]*PlayerConn
-	mur   sync.Mutex // protects the room map
-	muu   sync.Mutex // protects the user map
+	mu    sync.Mutex // protects the room map
 }
 
 func init() {
 	Hub.rooms = make(map[uuid.UUID]*Room)
-	Hub.users = make(map[string]*PlayerConn)
 }
 
 type Event string
@@ -61,7 +58,7 @@ func newPayload(event Event, data interface{}, from string) Payload {
 
 type Room struct {
 	mu        sync.Mutex // protects players map
-	players   map[*PlayerConn]struct{}
+	players   map[string]*PlayerConn
 	broadcast chan Payload
 	g         *game.Game
 
@@ -72,14 +69,14 @@ type Room struct {
 // NewRoom creates a new room and add it to the Hub.
 func NewRoom(game *game.Game) *Room {
 	room := Room{
-		players:   make(map[*PlayerConn]struct{}),
+		players:   make(map[string]*PlayerConn),
 		broadcast: make(chan Payload),
 		g:         game,
 	}
 
-	Hub.mur.Lock()
+	Hub.mu.Lock()
 	Hub.rooms[room.g.ID] = &room
-	Hub.mur.Unlock()
+	Hub.mu.Unlock()
 	go room.run()
 	return &room
 }
@@ -132,16 +129,20 @@ func (r *Room) play(message Payload) {
 	// Check given word length
 	if len(text) != word.Length {
 		message.sender.write(newPayload(CError, "Invalid message string length", ""))
+		return
 	}
 	// Process the given word and send error if the word is invalid
 	w := word.New(text)
-	ok = r.g.Play(message.sender.Username, w)
+	sender := message.sender.Username
+	ok = r.g.Play(sender, &w)
 	if !ok {
+		// TODO: what if the user session has ended because ok will be false as well
 		message.sender.write(newPayload(CError, "Invalid word", ""))
 		return
 	}
 
 	// Send the result to the player who submitted the message
+	fmt.Println(w.Stats)
 	payload := newPayload(CResult, w.Stats, "")
 	message.sender.write(payload)
 
@@ -159,8 +160,8 @@ func (r *Room) play(message Payload) {
 }
 
 func (r *Room) Join(username string, conn *websocket.Conn) {
-	old, ok := Hub.users[username]
-	if ok {
+	old := r.players[username]
+	if old != nil {
 		old.Close()
 		// If the player's room is not closed, notify all players in the room
 		// that the player has left the room
@@ -180,8 +181,11 @@ func (r *Room) Join(username string, conn *websocket.Conn) {
 
 	// Add the `new` player to the room and remove the `old` player
 	r.mu.Lock()
-	r.players[new] = struct{}{}
+	r.players[username] = new
 	r.mu.Unlock()
+
+	// Send the player his current state in the game
+	new.write(newPayload(CData, r.g.Sessions[username].Guesses, ""))
 
 	// Notify players that that a new player has joined
 	text := fmt.Sprintf("%s has joined", new.PName())
@@ -204,7 +208,7 @@ func (r *Room) close() error {
 	r.active = false
 	r.mu.Lock()
 	defer r.mu.Unlock()
-	for p := range r.players {
+	for _, p := range r.players {
 		p.Close()
 	}
 	close(r.broadcast)
@@ -235,7 +239,7 @@ func (r *Room) sendAll(payload Payload) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	errs := make([]*PlayerConn, 0)
-	for p := range r.players {
+	for _, p := range r.players {
 		err := p.write(payload)
 		if err != nil {
 			errs = append(errs, p)
@@ -243,12 +247,12 @@ func (r *Room) sendAll(payload Payload) {
 	}
 	// Remove players that failed to receive the payload
 	for _, p := range errs {
-		delete(r.players, p)
+		delete(r.players, p.Username)
 		p.Close()
 	}
 	go func() {
 		// Notify users about kicked players
-		for p := range r.players {
+		for _, p := range r.players {
 			for _, kp := range errs {
 				text := fmt.Sprintf("%s has left", kp.PName())
 				p.write(newPayload(CLeave, text, ""))

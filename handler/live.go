@@ -8,6 +8,18 @@ import (
 	"github.com/gorilla/websocket"
 )
 
+var (
+	// Create upgrade websocket connection
+	upgrader = websocket.Upgrader{
+		ReadBufferSize:  1024 * 1024,
+		WriteBufferSize: 1024 * 1024,
+		//Solving cross-domain problems
+		CheckOrigin: func(r *http.Request) bool {
+			return true
+		},
+	}
+)
+
 func (h *Handler) live(w http.ResponseWriter, r *http.Request) {
 	// Parse username from request query
 	username := r.URL.Query().Get("username")
@@ -25,8 +37,8 @@ func (h *Handler) live(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Get room from Hub
-	Hub.mur.Lock()
-	defer Hub.mur.Unlock()
+	Hub.mu.Lock()
+	defer Hub.mu.Unlock()
 	room, ok := Hub.rooms[roomID]
 	if !ok {
 		w.WriteHeader(http.StatusBadRequest)
@@ -46,16 +58,6 @@ func (h *Handler) live(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusBadRequest)
 		w.Write([]byte("you can't join ongoing game"))
 		return
-	}
-
-	// Create upgrade websocket connection
-	upgrader := websocket.Upgrader{
-		ReadBufferSize:  1024 * 1024 * 1024,
-		WriteBufferSize: 1024 * 1024 * 1024,
-		//Solving cross-domain problems
-		CheckOrigin: func(r *http.Request) bool {
-			return true
-		},
 	}
 
 	// Upgrade the HTTP connection to a websocket connection

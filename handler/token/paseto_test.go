@@ -7,15 +7,14 @@ import (
 	"time"
 
 	"github.com/Chat-Map/wordle-server/game"
-	"github.com/lordvidex/x/auth"
 )
 
 func TestNew(t *testing.T) {
 	type args struct {
-		key      []byte
-		footer   string
-		validity time.Duration
-	}
+	footer   string
+	key      []byte
+	validity time.Duration
+}
 	tests := []struct {
 		name    string
 		args    args
@@ -59,20 +58,24 @@ func TestPasetoGenerate(t *testing.T) {
 	tests := []struct {
 		name    string
 		args    args
-		want    auth.Token
 		wantErr bool
 	}{
-		// TODO: Add test cases.
+		{
+			name: "valid generate",
+			args: args{player: game.Player{
+				Password: "password",
+				Username: "username",
+				ID:       1,
+			}},
+			wantErr: false,
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got, err := p.Generate(context.Background(), tt.args.player)
+			_, err := p.Generate(context.Background(), tt.args.player)
 			if (err != nil) != tt.wantErr {
 				t.Errorf("Paseto.Generate() error = %v, wantErr %v", err, tt.wantErr)
 				return
-			}
-			if !reflect.DeepEqual(got, tt.want) {
-				t.Errorf("Paseto.Generate() = %v, want %v", got, tt.want)
 			}
 		})
 	}
@@ -81,7 +84,7 @@ func TestPasetoGenerate(t *testing.T) {
 func TestPasetoValidate(t *testing.T) {
 	p := newPasetoTest(t)
 	type args struct {
-		token auth.Token
+		player game.Player
 	}
 	tests := []struct {
 		name    string
@@ -89,11 +92,29 @@ func TestPasetoValidate(t *testing.T) {
 		want    game.Player
 		wantErr bool
 	}{
-		// TODO: Add test cases.
+		{
+			name: "valid generate",
+			args: args{player: game.Player{
+				Password: "password",
+				Username: "username",
+				ID:       1,
+			}},
+			want: game.Player{
+				Password: "",
+				Username: "username",
+				ID:       1,
+			},
+			wantErr: false,
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got, err := p.Validate(context.Background(), tt.args.token)
+			token, err := p.Generate(context.Background(), tt.args.player)
+			if (err != nil) != tt.wantErr {
+				t.Errorf("Paseto.Generate() error = %v, wantErr %v", err, tt.wantErr)
+				return
+			}
+			got, err := p.Validate(context.Background(), token)
 			if (err != nil) != tt.wantErr {
 				t.Errorf("Paseto.Validate() error = %v, wantErr %v", err, tt.wantErr)
 				return

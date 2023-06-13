@@ -16,7 +16,9 @@ import (
 )
 
 func main() {
-	ctx := context.Background()
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second*20)
+	defer cancel()
+
 	err := env.Parse(&config)
 	if err != nil {
 		log.Fatal(err)
