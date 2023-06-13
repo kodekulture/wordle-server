@@ -1,7 +1,6 @@
 package game
 
 import (
-	"sync"
 	"time"
 
 	"github.com/Chat-Map/wordle-server/game/word"
@@ -27,15 +26,6 @@ const (
 	Finished
 )
 
-var Hub struct {
-	mu    sync.RWMutex // protects the games map
-	games map[uuid.UUID]*Game
-}
-
-func init() {
-	Hub.games = make(map[uuid.UUID]*Game)
-}
-
 type Game struct {
 	ID          uuid.UUID
 	Creator     string              // the username of the player who created the game, only this user can start the game
@@ -56,6 +46,11 @@ func (g *Game) Start() {
 // Join is used to enter a game before it starts
 func (g *Game) Join(username string) {
 	g.Sessions[username] = &Session{}
+}
+
+// HasEnded returns true if game has ended, otherwise false
+func (g *Game) HasEnded() bool {
+	return g.EndedAt != nil
 }
 
 func New(username string, correctWord word.Word) *Game {
