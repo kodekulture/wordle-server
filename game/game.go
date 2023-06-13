@@ -27,14 +27,14 @@ const (
 )
 
 type Game struct {
+	CreatedAt   time.Time
+	Sessions    map[string]*Session
+	StartedAt   *time.Time
+	EndedAt     *time.Time
+	Creator     string
+	CorrectWord word.Word
+	finished    int
 	ID          uuid.UUID
-	Creator     string              // the username of the player who created the game, only this user can start the game
-	CorrectWord word.Word           // the correct word that should be guessed
-	Sessions    map[string]*Session // each player's game state, points, position
-	finished    int                 // the number of players who have finished the game by guessing the correct word
-	CreatedAt   time.Time           // the time the game created
-	StartedAt   *time.Time          // the time the game started, when the value is nil, this means the game has not started
-	EndedAt     *time.Time          // EndTime is the time the game ended, when the value is nil, this means the game has not ended
 }
 
 func (g *Game) Start() {
