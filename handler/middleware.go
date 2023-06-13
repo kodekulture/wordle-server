@@ -40,7 +40,7 @@ var (
 	ErrUnauthenticated = errs.B().Code(errs.Unauthenticated).Msg("user is unauthenticated").Err()
 )
 
-func Player(ctx context.Context) *game.Player {
+func PlayerFromCtx(ctx context.Context) *game.Player {
 	v, _ := ctx.Value(playerKey).(*game.Player)
 	return v
 }

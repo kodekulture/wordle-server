@@ -133,7 +133,7 @@ func (h *Handler) joinRoom(w http.ResponseWriter, r *http.Request) {
 }
 func (h *Handler) rooms(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
-	player := Player(ctx)
+	player := PlayerFromCtx(ctx)
 	if player == nil {
 		resp.Error(w, ErrUnauthenticated)
 		return
