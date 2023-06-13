@@ -50,7 +50,7 @@ func (p *Paseto) Validate(ctx context.Context, token auth.Token) (game.Player, e
 	if err := paseto.Decrypt(string(token), p.symmetricKey, &payload, &p.footer); err != nil {
 		return game.Player{}, err
 	}
-	if err := payload.Validate(paseto.IssuedBy(p.footer)); err != nil {
+	if err := payload.Validate(paseto.IssuedBy(p.footer), paseto.ValidAt(time.Now())); err != nil {
 		return game.Player{}, err
 	}
 	return p.toPlayer(payload)

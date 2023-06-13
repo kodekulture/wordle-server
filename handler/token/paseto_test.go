@@ -11,10 +11,10 @@ import (
 
 func TestNew(t *testing.T) {
 	type args struct {
-	footer   string
-	key      []byte
-	validity time.Duration
-}
+		footer   string
+		key      []byte
+		validity time.Duration
+	}
 	tests := []struct {
 		name    string
 		args    args
@@ -51,13 +51,18 @@ func TestNew(t *testing.T) {
 }
 
 func TestPasetoGenerate(t *testing.T) {
-	p := newPasetoTest(t)
+	type fields struct {
+		key      []byte
+		footer   string
+		validity time.Duration
+	}
 	type args struct {
 		player game.Player
 	}
 	tests := []struct {
 		name    string
 		args    args
+		fields  fields
 		wantErr bool
 	}{
 		{
@@ -67,11 +72,31 @@ func TestPasetoGenerate(t *testing.T) {
 				Username: "username",
 				ID:       1,
 			}},
+			fields: fields{
+				key:      []byte("12345678901234567890123456789012"),
+				footer:   "footer",
+				validity: 24 * time.Hour,
+			},
 			wantErr: false,
+		},
+		{
+			name: "invalid generate key",
+			args: args{player: game.Player{
+				Password: "password",
+				Username: "username",
+				ID:       1,
+			}},
+			fields: fields{
+				key:      []byte("1234567890123456789012345678901"),
+				footer:   "footer",
+				validity: 24 * time.Hour,
+			},
+			wantErr: true,
 		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			p := Paseto{symmetricKey: tt.fields.key, footer: tt.fields.footer, period: tt.fields.validity}
 			_, err := p.Generate(context.Background(), tt.args.player)
 			if (err != nil) != tt.wantErr {
 				t.Errorf("Paseto.Generate() error = %v, wantErr %v", err, tt.wantErr)
@@ -82,23 +107,33 @@ func TestPasetoGenerate(t *testing.T) {
 }
 
 func TestPasetoValidate(t *testing.T) {
-	p := newPasetoTest(t)
+	type fields struct {
+		key      []byte
+		footer   string
+		validity time.Duration
+	}
 	type args struct {
 		player game.Player
 	}
 	tests := []struct {
 		name    string
+		fields  fields
 		args    args
 		want    game.Player
 		wantErr bool
 	}{
 		{
-			name: "valid generate",
+			name: "valid",
 			args: args{player: game.Player{
 				Password: "password",
 				Username: "username",
 				ID:       1,
 			}},
+			fields: fields{
+				key:      []byte("12345678901234567890123456789012"),
+				footer:   "",
+				validity: 24 * time.Hour,
+			},
 			want: game.Player{
 				Password: "",
 				Username: "username",
@@ -106,31 +141,38 @@ func TestPasetoValidate(t *testing.T) {
 			},
 			wantErr: false,
 		},
+		{
+			name: "expired",
+			args: args{player: game.Player{
+				Password: "password",
+				Username: "username",
+				ID:       1,
+			}},
+			fields: fields{
+				key:      []byte("12345678901234567890123456789012"),
+				footer:   "footer",
+				validity: -24 * time.Hour,
+			},
+			want: game.Player{
+				Password: "",
+				Username: "username",
+				ID:       1,
+			},
+			wantErr: true,
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			token, err := p.Generate(context.Background(), tt.args.player)
-			if (err != nil) != tt.wantErr {
-				t.Errorf("Paseto.Generate() error = %v, wantErr %v", err, tt.wantErr)
-				return
-			}
+			p := Paseto{symmetricKey: tt.fields.key, footer: tt.fields.footer, period: tt.fields.validity}
+			token, _ := p.Generate(context.Background(), tt.args.player)
 			got, err := p.Validate(context.Background(), token)
 			if (err != nil) != tt.wantErr {
 				t.Errorf("Paseto.Validate() error = %v, wantErr %v", err, tt.wantErr)
 				return
 			}
-			if !reflect.DeepEqual(got, tt.want) {
+			if err == nil && !reflect.DeepEqual(got, tt.want) {
 				t.Errorf("Paseto.Validate() = %v, want %v", got, tt.want)
 			}
 		})
 	}
-}
-
-// newPasetoTest creates a new paseto instance for testing purposes
-func newPasetoTest(t *testing.T) *Paseto {
-	p, err := New([]byte("12345678901234567890123456789012"), "footer", 24*time.Hour)
-	if err != nil {
-		t.Errorf("Failed to create paseto: %v", err)
-	}
-	return p
 }
