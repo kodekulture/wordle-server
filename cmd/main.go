@@ -15,8 +15,6 @@ import (
 	"github.com/Chat-Map/wordle-server/service"
 )
 
-var port string
-
 func main() {
 	ctx := context.Background()
 	err := env.Parse(&config)
@@ -33,15 +31,14 @@ func main() {
 		log.Fatal(err)
 	}
 	h := handler.New(srv, tokener)
-	h.Start(port)
+	log.Printf("server started on port: %s", config.Port)
+	if err = h.Start(config.Port); err != nil {
+		log.Fatal(err)
+	}
 }
 
 func getConnection(ctx context.Context) (*pgxpool.Pool, error) {
-	dbURL := config.PostgresURL
-	if dbURL == "" {
-		return nil, errors.New("DATABASE_URL is not set")
-	}
-	conn, err := pgxpool.New(ctx, dbURL)
+	conn, err := pgxpool.New(ctx, config.PostgresURL)
 	if err != nil {
 		return nil, err
 	}
@@ -54,6 +51,6 @@ func getConnection(ctx context.Context) (*pgxpool.Pool, error) {
 
 var config struct {
 	Port        string `env:"PORT" envDefault:"8080"`
-	PostgresURL string `env:"POSTGRES_URL"`
+	PostgresURL string `env:"POSTGRES_URL,required"`
 	PASETOKey   string `env:"PASETO_KEY,required"`
 }

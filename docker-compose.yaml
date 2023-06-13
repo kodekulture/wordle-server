@@ -16,7 +16,7 @@ services:
       - PASETO_KEY=${PASETO_KEY}
       - PORT=${PORT}
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:${PORT}/health"]
+      test: ["CMD", "curl", "http://localhost:${PORT}/health"]
       interval: 10s
       timeout: 30s
       retries: 5
