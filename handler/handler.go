@@ -125,7 +125,7 @@ type roomIDResponse struct {
 func (h *Handler) createRoom(w http.ResponseWriter, r *http.Request) {
 	// 1. get the user from the context
 	ctx := r.Context()
-	player := PlayerFromCtx(ctx)
+	player := Player(ctx)
 	if player == nil {
 		resp.Error(w, ErrUnauthenticated)
 		return
@@ -149,7 +149,7 @@ func (h *Handler) joinRoom(w http.ResponseWriter, r *http.Request) {
 }
 func (h *Handler) rooms(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
-	player := PlayerFromCtx(ctx)
+	player := Player(ctx)
 	if player == nil {
 		resp.Error(w, ErrUnauthenticated)
 		return

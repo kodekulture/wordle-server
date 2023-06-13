@@ -14,14 +14,14 @@ import (
 
 var Hub struct {
 	rooms map[uuid.UUID]*Room
-	users map[string]*Player
+	users map[string]*PlayerConn
 	mur   sync.Mutex // protects the room map
 	muu   sync.Mutex // protects the user map
 }
 
 func init() {
 	Hub.rooms = make(map[uuid.UUID]*Room)
-	Hub.users = make(map[string]*Player)
+	Hub.users = make(map[string]*PlayerConn)
 }
 
 type Event string
@@ -48,7 +48,7 @@ type Payload struct {
 	Type   Event       `json:"event"`
 	Data   interface{} `json:"data"`
 	From   string      `json:"from"` // From is the name of the player that sent the message displayed to all other players in the room
-	sender *Player     `json:"-"`    // sender is the player that sent the message
+	sender *PlayerConn `json:"-"`    // sender is the player that sent the message
 }
 
 func newPayload(event Event, data interface{}, from string) Payload {
@@ -61,7 +61,7 @@ func newPayload(event Event, data interface{}, from string) Payload {
 
 type Room struct {
 	mu        sync.Mutex // protects players map
-	players   map[*Player]struct{}
+	players   map[*PlayerConn]struct{}
 	broadcast chan Payload
 	g         *game.Game
 
@@ -72,7 +72,7 @@ type Room struct {
 // NewRoom creates a new room and add it to the Hub.
 func NewRoom(game *game.Game) *Room {
 	room := Room{
-		players:   make(map[*Player]struct{}),
+		players:   make(map[*PlayerConn]struct{}),
 		broadcast: make(chan Payload),
 		g:         game,
 	}
@@ -146,7 +146,7 @@ func (r *Room) play(message Payload) {
 	message.sender.write(payload)
 
 	// Send the result to all players in the room
-	// TODO: Create more reasonable message
+	// TODO: Create more reasonable message.. we shouldn't also show the word the other user played
 	text = fmt.Sprintf("%s played %s", message.From, text)
 	payload = newPayload(CPlay, text, message.From)
 	r.sendAll(payload)
@@ -173,7 +173,7 @@ func (r *Room) Join(username string, conn *websocket.Conn) {
 	}
 
 	// Create a new player and add it to the game
-	new := NewPlayer(conn, r, username)
+	new := NewPlayerConn(conn, r, username)
 	if _, ok := r.g.Sessions[username]; !ok {
 		r.g.Join(username)
 	}
@@ -234,7 +234,7 @@ func (r *Room) run() {
 func (r *Room) sendAll(payload Payload) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
-	errs := make([]*Player, 0)
+	errs := make([]*PlayerConn, 0)
 	for p := range r.players {
 		err := p.write(payload)
 		if err != nil {
@@ -257,26 +257,26 @@ func (r *Room) sendAll(payload Payload) {
 	}()
 }
 
-// Player represents a player in the game.
+// PlayerConn represents a player in the game.
 // A player can be in multiple rooms, but only one game at a time.
-type Player struct {
-	Username string
+type PlayerConn struct {
 	conn     *websocket.Conn
-	writeMu  sync.Mutex
 	room     *Room
+	Username string
+	writeMu  sync.Mutex
 }
 
 // PName returns the player name.
-func (p *Player) PName() string {
+func (p *PlayerConn) PName() string {
 	return p.Username
 }
 
-// NewPlayer creates a new player.
+// NewPlayerConn creates a new player.
 // This function starts the read goroutine to forward messages to the room.
 // Also starts the ping goroutine to ping the player every 5 seconds
 // to check if the player is still connected otherwise the connection is closed.
-func NewPlayer(conn *websocket.Conn, room *Room, username string) *Player {
-	player := Player{
+func NewPlayerConn(conn *websocket.Conn, room *Room, username string) *PlayerConn {
+	player := PlayerConn{
 		Username: username,
 		conn:     conn,
 		room:     room,
@@ -287,13 +287,13 @@ func NewPlayer(conn *websocket.Conn, room *Room, username string) *Player {
 }
 
 // Close closes the player connection.
-func (p *Player) Close() error {
+func (p *PlayerConn) Close() error {
 	return p.conn.Close()
 }
 
 // ping pings the player every 5 seconds to check if the player is still connected
 // otherwise the connection is closed.
-func (p *Player) ping() {
+func (p *PlayerConn) ping() {
 	ticker := time.NewTicker(time.Second * 5)
 	defer ticker.Stop()
 	for range ticker.C {
@@ -309,7 +309,7 @@ func (p *Player) ping() {
 
 // read reads messages from the player connection and forwards
 // them to the room to be processed.
-func (p *Player) read() {
+func (p *PlayerConn) read() {
 	for {
 		var payload Payload
 		err := p.conn.ReadJSON(&payload)
@@ -323,7 +323,7 @@ func (p *Player) read() {
 }
 
 // write writes the payload to the player connection in synchronized manner.
-func (p *Player) write(payload Payload) error {
+func (p *PlayerConn) write(payload Payload) error {
 	p.writeMu.Lock()
 	defer p.writeMu.Unlock()
 	return p.conn.WriteJSON(payload)
