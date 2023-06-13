@@ -9,21 +9,24 @@ import (
 	"github.com/lordvidex/x/resp"
 
 	"github.com/Chat-Map/wordle-server/game"
+	"github.com/Chat-Map/wordle-server/game/word"
 	"github.com/Chat-Map/wordle-server/handler/token"
 	"github.com/Chat-Map/wordle-server/service"
 )
 
 type Handler struct {
-	router chi.Router
-	srv    *service.Service
-	token  token.Handler
+	router  chi.Router
+	srv     *service.Service
+	token   token.Handler
+	wordGen word.Generator
 }
 
 func New(srv *service.Service, tokenHandler token.Handler) *Handler {
 	h := &Handler{
-		router: chi.NewRouter(),
-		srv:    srv,
-		token:  tokenHandler,
+		router:  chi.NewRouter(),
+		srv:     srv,
+		token:   tokenHandler,
+		wordGen: word.NewLocalGen(),
 	}
 
 	h.setup()
@@ -115,16 +118,29 @@ func (h *Handler) register(w http.ResponseWriter, r *http.Request) {
 	resp.JSON(w, result)
 }
 
+type roomIDResponse struct {
+	ID string `json:"id"`
+}
+
 func (h *Handler) createRoom(w http.ResponseWriter, r *http.Request) {
-	// TODO:
 	// 1. get the user from the context
-	//
+	ctx := r.Context()
+	player := PlayerFromCtx(ctx)
+	if player == nil {
+		resp.Error(w, ErrUnauthenticated)
+		return
+	}
 	// 2. create a room with the user as the creator and store this room in temporary area (Hub)
-	//
+	wrd := h.wordGen.Generate(word.Length)
+	g := game.New(player.Username, word.New(wrd))
+	room := NewRoom(g)
+
 	// 3. return the room id
+	result := roomIDResponse{ID: room.g.ID.String()}
+	resp.JSON(w, result)
 }
 func (h *Handler) joinRoom(w http.ResponseWriter, r *http.Request) {
-	// TODO:
+	// TODO: to be implemented later
 	// 1. get the user from the context
 	// 2. get the room id from the url params
 	// 3. find the room in the temporary area (Hub)

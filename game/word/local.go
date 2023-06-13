@@ -19,8 +19,8 @@ var (
 
 // localWordGenerator generates a word from one of the words in fileContent
 type localWordGenerator struct {
-	words []string
 	rnd   *rand.Rand
+	words []string
 }
 
 func NewLocalGen() *localWordGenerator {

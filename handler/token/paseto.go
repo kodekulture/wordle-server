@@ -16,8 +16,8 @@ var (
 )
 
 type Paseto struct {
-	symmetricKey []byte // must be 32 bytes long
 	footer       string
+	symmetricKey []byte
 	period       time.Duration
 }
 

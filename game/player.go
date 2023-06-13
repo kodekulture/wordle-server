@@ -1,7 +1,7 @@
 package game
 
 type Player struct {
-	ID       int
-	Username string
 	Password string
+	Username string
+	ID       int
 }

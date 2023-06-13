@@ -13,10 +13,10 @@ import (
 )
 
 var Hub struct {
-	mur   sync.Mutex // protects the games map
-	muu   sync.Mutex // protects the users map
 	rooms map[uuid.UUID]*Room
 	users map[string]*Player
+	mur   sync.Mutex // protects the room map
+	muu   sync.Mutex // protects the user map
 }
 
 func init() {
