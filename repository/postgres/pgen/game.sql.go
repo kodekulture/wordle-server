@@ -40,13 +40,25 @@ type CreateGamePlayersParams struct {
 }
 
 const fetchGame = `-- name: FetchGame :one
-SELECT id, creator, correct_word, created_at, started_at, ended_at from game WHERE id = $1
+SELECT p.username AS creator_username, g.id, g.creator, g.correct_word, g.created_at, g.started_at, g.ended_at from game g
+JOIN player p ON game.creator = p.id WHERE g.id = $1
 `
 
-func (q *Queries) FetchGame(ctx context.Context, id pgtype.UUID) (Game, error) {
+type FetchGameRow struct {
+	CreatorUsername string
+	ID              pgtype.UUID
+	Creator         int32
+	CorrectWord     string
+	CreatedAt       pgtype.Timestamptz
+	StartedAt       pgtype.Timestamptz
+	EndedAt         pgtype.Timestamptz
+}
+
+func (q *Queries) FetchGame(ctx context.Context, id pgtype.UUID) (FetchGameRow, error) {
 	row := q.db.QueryRow(ctx, fetchGame, id)
-	var i Game
+	var i FetchGameRow
 	err := row.Scan(
+		&i.CreatorUsername,
 		&i.ID,
 		&i.Creator,
 		&i.CorrectWord,

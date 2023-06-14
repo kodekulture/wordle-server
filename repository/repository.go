@@ -5,6 +5,7 @@ import (
 	"context"
 
 	"github.com/Chat-Map/wordle-server/game"
+	"github.com/google/uuid"
 )
 
 type Player interface {
@@ -27,4 +28,7 @@ type Game interface {
 
 	// FinishGame saves a game at the end of the game
 	FinishGame(context.Context, *game.Game) error
+
+	// FetchGame returns a game with a given gameID
+	FetchGame(context.Context, uuid.UUID) (*game.Game, error)
 }

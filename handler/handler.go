@@ -6,6 +6,8 @@ import (
 	"net/http"
 
 	"github.com/go-chi/chi/v5"
+	"github.com/google/uuid"
+	"github.com/lordvidex/errs"
 	"github.com/lordvidex/x/auth"
 	"github.com/lordvidex/x/req"
 	"github.com/lordvidex/x/resp"
@@ -179,7 +181,20 @@ func (h *Handler) rooms(w http.ResponseWriter, r *http.Request) {
 	}
 	resp.JSON(w, rooms) // TODO: create separate response type for this
 }
+
 func (h *Handler) room(w http.ResponseWriter, r *http.Request) {
+	id := chi.URLParam(r, "id")
+	uid, err := uuid.Parse(id)
+	if err != nil {
+		resp.Error(w, errs.B().Code(errs.InvalidArgument).Msg("invalid parameters").Err())
+		return
+	}
+	game, err := h.srv.GetGame(r.Context(), uid)
+	if err != nil {
+		resp.Error(w, err)
+		return
+	}
+	resp.JSON(w, game)
 	// TODO:
 	// 1. get the user from the context
 	// 2. get the room id from the url params

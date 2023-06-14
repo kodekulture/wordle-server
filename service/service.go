@@ -3,6 +3,7 @@ package service
 import (
 	"context"
 
+	"github.com/google/uuid"
 	"github.com/lordvidex/errs"
 
 	"github.com/Chat-Map/wordle-server/game"
@@ -47,6 +48,14 @@ func (s *Service) GetPlayer(ctx context.Context, username string) (*game.Player,
 		return nil, errs.WrapCode(err, errs.NotFound, "player not found")
 	}
 	return p, nil
+}
+
+func (s *Service) GetGame(ctx context.Context, roomID uuid.UUID) (*game.Game, error) {
+	room, err := s.gr.FetchGame(ctx, roomID)
+	if err != nil {
+		return nil, errs.WrapCode(err, errs.InvalidArgument, "error fetching game")
+	}
+	return room, nil
 }
 
 func (s *Service) GetPlayerRooms(ctx context.Context, playerID int) ([]game.Game, error) {

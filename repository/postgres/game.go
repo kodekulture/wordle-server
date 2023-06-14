@@ -87,7 +87,6 @@ func (r *GameRepo) FinishGame(ctx context.Context, g *game.Game) error {
 	var (
 		tx  pgx.Tx
 		err error
-		gm  pgen.Game
 	)
 	// create a transaction
 	tx, err = r.db.Begin(ctx)
@@ -99,7 +98,7 @@ func (r *GameRepo) FinishGame(ctx context.Context, g *game.Game) error {
 	uid := pgtype.UUID{Bytes: g.ID, Valid: true}
 
 	// fetch the game from the database
-	gm, err = r.q.WithTx(tx).FetchGame(ctx, uid)
+	gm, err := r.q.WithTx(tx).FetchGame(ctx, uid)
 	if err != nil {
 		return err
 	}
@@ -133,6 +132,21 @@ func (r *GameRepo) FinishGame(ctx context.Context, g *game.Game) error {
 	}
 	// commit
 	return tx.Commit(ctx)
+}
+
+func (r *GameRepo) FetchGame(ctx context.Context, gameID uuid.UUID) (*game.Game, error) {
+	g, err := r.q.FetchGame(ctx, pgtype.UUID{Bytes: gameID, Valid: true})
+	if err != nil {
+		return nil, err
+	}
+	return &game.Game{
+		ID:          uuid.UUID(g.ID.Bytes),
+		Creator:     g.CreatorUsername,
+		CorrectWord: word.New(g.CorrectWord),
+		CreatedAt:   g.CreatedAt.Time,
+		StartedAt:   toNilTime(g.StartedAt),
+		EndedAt:     toNilTime(g.CreatedAt),
+	}, nil
 }
 
 // GetGames implements repository.Game.

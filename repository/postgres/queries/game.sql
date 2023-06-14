@@ -17,7 +17,8 @@ JOIN player p ON gp.player_id = p.id
 WHERE gp.game_id = $1;
 
 -- name: FetchGame :one
-SELECT * from game WHERE id = $1;
+SELECT p.username AS creator_username, g.* from game g
+JOIN player p ON game.creator = p.id WHERE g.id = $1;
 
 -- name: FinishGame :exec
 UPDATE game SET ended_at = coalesce($2, NOW()) WHERE id = $1;
