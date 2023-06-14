@@ -2,6 +2,7 @@ package handler
 
 import (
 	"fmt"
+	"log"
 	"net/http"
 
 	"github.com/go-chi/chi/v5"
@@ -30,6 +31,7 @@ func New(srv *service.Service, tokenHandler token.Handler) *Handler {
 		wordGen: word.NewLocalGen(),
 	}
 
+	Hub.s = srv
 	h.setup()
 	return h
 }
@@ -139,6 +141,7 @@ func (h *Handler) createRoom(w http.ResponseWriter, r *http.Request) {
 	}
 	// 2. create a room with the user as the creator and store this room in temporary area (Hub)
 	wrd := h.wordGen.Generate(word.Length)
+	log.Println(wrd)
 	g := game.New(player.Username, word.New(wrd))
 	room := NewRoom(g)
 
