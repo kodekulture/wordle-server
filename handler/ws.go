@@ -6,10 +6,11 @@ import (
 	"sync"
 	"time"
 
-	"github.com/Chat-Map/wordle-server/game"
-	"github.com/Chat-Map/wordle-server/game/word"
 	"github.com/google/uuid"
 	"github.com/gorilla/websocket"
+
+	"github.com/Chat-Map/wordle-server/game"
+	"github.com/Chat-Map/wordle-server/game/word"
 )
 
 var Hub struct {

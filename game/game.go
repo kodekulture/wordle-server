@@ -3,9 +3,9 @@ package game
 import (
 	"time"
 
-	"github.com/Chat-Map/wordle-server/game/word"
-
 	"github.com/google/uuid"
+
+	"github.com/Chat-Map/wordle-server/game/word"
 )
 
 const (

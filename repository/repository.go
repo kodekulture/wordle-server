@@ -21,4 +21,7 @@ type Player interface {
 type Game interface {
 	// GetGames returns all games of a player
 	GetGames(ctx context.Context, playerID int) ([]game.Game, error)
+
+	// SaveGame saves a game into the dababase as well as the player's sessions
+	SaveGame(ctx context.Context, g *game.Game) error
 }

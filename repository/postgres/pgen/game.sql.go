@@ -11,6 +11,38 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
+const fetchGame = `-- name: FetchGame :one
+SELECT id, creator, correct_word, created_at, started_at, ended_at from game WHERE id = $1
+`
+
+func (q *Queries) FetchGame(ctx context.Context, id pgtype.UUID) (Game, error) {
+	row := q.db.QueryRow(ctx, fetchGame, id)
+	var i Game
+	err := row.Scan(
+		&i.ID,
+		&i.Creator,
+		&i.CorrectWord,
+		&i.CreatedAt,
+		&i.StartedAt,
+		&i.EndedAt,
+	)
+	return i, err
+}
+
+const finishGame = `-- name: FinishGame :exec
+UPDATE game SET ended_at = coalesce($2, NOW()) WHERE id = $1
+`
+
+type FinishGameParams struct {
+	ID      pgtype.UUID
+	EndedAt pgtype.Timestamptz
+}
+
+func (q *Queries) FinishGame(ctx context.Context, arg FinishGameParams) error {
+	_, err := q.db.Exec(ctx, finishGame, arg.ID, arg.EndedAt)
+	return err
+}
+
 const gamePlayers = `-- name: GamePlayers :many
 SELECT p.id, p.username, gp.correct_guesses, gp.correct_guesses_time, gp.finished 
 FROM game_player gp 
@@ -117,4 +149,46 @@ func (q *Queries) PlayerGames(ctx context.Context, arg PlayerGamesParams) ([]Pla
 		return nil, err
 	}
 	return items, nil
+}
+
+const startGame = `-- name: StartGame :exec
+UPDATE game SET started_at = coalesce($2, NOW()) WHERE id = $1
+`
+
+type StartGameParams struct {
+	ID        pgtype.UUID
+	StartedAt pgtype.Timestamptz
+}
+
+func (q *Queries) StartGame(ctx context.Context, arg StartGameParams) error {
+	_, err := q.db.Exec(ctx, startGame, arg.ID, arg.StartedAt)
+	return err
+}
+
+const updatePlayerStats = `-- name: UpdatePlayerStats :exec
+INSERT INTO game_player (game_id, player_id) VALUES ($1, $2)
+ON CONFLICT (game_id, player_id) 
+DO UPDATE SET played_words=$3, correct_guesses=$4, correct_guesses_time=$5, finished=$6
+`
+
+type UpdatePlayerStatsParams struct {
+	GameID             pgtype.UUID
+	PlayerID           int32
+	PlayedWords        []byte
+	CorrectGuesses     pgtype.Int4
+	CorrectGuessesTime pgtype.Timestamptz
+	Finished           pgtype.Timestamptz
+}
+
+// This upserts the player stats if they were not already present
+func (q *Queries) UpdatePlayerStats(ctx context.Context, arg UpdatePlayerStatsParams) error {
+	_, err := q.db.Exec(ctx, updatePlayerStats,
+		arg.GameID,
+		arg.PlayerID,
+		arg.PlayedWords,
+		arg.CorrectGuesses,
+		arg.CorrectGuessesTime,
+		arg.Finished,
+	)
+	return err
 }
