@@ -3,6 +3,7 @@
 package word
 
 import (
+	_ "embed"
 	"math/rand"
 	"strconv"
 	"strings"
@@ -10,7 +11,7 @@ import (
 )
 
 var (
-	// go:embed resources/five_letter_words.txt
+	//go:embed resources/five_letter_words.txt
 	fileContent string
 
 	// Length is the length of the word to be guessed
@@ -19,8 +20,8 @@ var (
 
 // localWordGenerator generates a word from one of the words in fileContent
 type localWordGenerator struct {
-	words []string
 	rnd   *rand.Rand
+	words []string
 }
 
 func NewLocalGen() *localWordGenerator {
