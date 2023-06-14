@@ -103,6 +103,8 @@
 * Fields:
     * Sender: <playerUsername>
     * Message
+* Triggers:
+  * [client/message](#wse-clientmessage)
 
 ### [WSE] client/message
 
@@ -123,23 +125,33 @@
 * Response:
   * []int, Where each `i` can be {0,1,2,3}, Length of []int is the size of the word
 
+* Tiggers:
+  * [client/result](#wse-clientresult)
+  * [client/play](#wse-clientplay)
+
 ### [WSE] client/result
 
 * Returns the result of a `server/play` to the SENDER ONLY to show the result of a played word.
-
-### [WSE] client/data
-
-* Returns the current game data, it is usually sent at the beginning of a connection/reconnection to update the stored data on the client about the current game status.
-
-### [WSE] client/start
-
-* Notify users that the game has started, Now they can submit words using /play
 
 ### [WSE] client/play
 
 * When a player submits a word, other users are notified about the status of the leaderboard of this user.
 * Users receives a `Session` object to update leaderboard
 
+### [WSE] server/start
+
+* Send a signal to mark the game as started and the server should now notify other players in the game about the event.
+
+* Triggers:
+  * [client/start](#wse-clientstart)
+
+### [WSE] client/start
+
+* Notify users that the game has started, Now they can submit words using /play
+
+### [WSE] client/data
+
+* Returns the current game data, it is usually sent at the beginning of a connection/reconnection to update the stored data on the client about the current game status.
 
 # Future Game Modes ✨
 
