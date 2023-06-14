@@ -19,7 +19,7 @@ CREATE TABLE IF NOT EXISTS game_player (
   player_id INTEGER NOT NULL REFERENCES player(id),
   --json data containing list of words played by this user (should only be shown to the user who owns this data)
   played_words JSONB,
-  -- how many words this user was able to guess correctly
+  -- how many letters this user was able to guess correctly
   correct_guesses INTEGER DEFAULT 0,
   -- time taken to get his correct_guesses
   correct_guesses_time TIMESTAMPTZ,

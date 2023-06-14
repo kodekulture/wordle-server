@@ -2,7 +2,6 @@ package postgres
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"strings"
 	"time"
@@ -10,6 +9,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
+	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/lordvidex/errs"
 	"github.com/lordvidex/x/ptr"
 
@@ -22,8 +22,8 @@ import (
 var _ repository.Game = new(GameRepo)
 
 type GameRepo struct {
-	db DBTX
-	*pgen.Queries
+	db *pgxpool.Pool
+	q  *pgen.Queries
 }
 
 // SaveGame implements repository.Game.
@@ -47,7 +47,7 @@ func (r *GameRepo) SaveGame(ctx context.Context, g *game.Game) error {
 
 	// fetch the game or create it if it doesn't exists
 	uid := pgtype.UUID{Bytes: g.ID, Valid: true}
-	_, err = r.WithTx(tx).FetchGame(ctx, uid)
+	_, err = r.q.WithTx(tx).FetchGame(ctx, uid)
 	if err != nil {
 		if err != pgx.ErrNoRows {
 			return err
@@ -60,7 +60,7 @@ func (r *GameRepo) SaveGame(ctx context.Context, g *game.Game) error {
 	}
 
 	// fetch all of the players in the game
-	p, err := r.WithTx(tx).GamePlayers(ctx, uid)
+	p, err := r.q.WithTx(tx).GamePlayers(ctx, uid)
 	if err != nil {
 		return err
 	}
@@ -71,14 +71,14 @@ func (r *GameRepo) SaveGame(ctx context.Context, g *game.Game) error {
 	// update the game
 	switch {
 	case g.EndedAt != nil:
-		err = r.WithTx(tx).FinishGame(ctx, pgen.FinishGameParams{
+		err = r.q.WithTx(tx).FinishGame(ctx, pgen.FinishGameParams{
 			ID: uid,
 			EndedAt: pgtype.Timestamptz{
 				Time:  ptr.ToObj(g.EndedAt),
 				Valid: g.EndedAt != nil,
 			}})
 	case g.StartedAt != nil:
-		err = r.WithTx(tx).StartGame(ctx, pgen.StartGameParams{
+		err = r.q.WithTx(tx).StartGame(ctx, pgen.StartGameParams{
 			ID: uid,
 			StartedAt: pgtype.Timestamptz{
 				Time:  ptr.ToObj(g.StartedAt),
@@ -98,32 +98,27 @@ func (r *GameRepo) SaveGame(ctx context.Context, g *game.Game) error {
 			errors = append(errors, errs.B().Msgf("player %s not found in game %s and data was not updated", username, g.ID).Err())
 			continue
 		}
-		err = r.WithTx(tx).UpdatePlayerStats(ctx, pgen.UpdatePlayerStatsParams{
+		guess := session.BestGuess()
+		err = r.q.WithTx(tx).UpdatePlayerStats(ctx, pgen.UpdatePlayerStatsParams{
 			GameID:   uid,
 			PlayerID: player.ID,
 			Finished: func() pgtype.Timestamptz {
+				// if the session has not ended, then the player has not finished
+				// so we return a null value
 				if session.Ended() {
 					return pgtype.Timestamptz{}
 				}
-				t := session.Guesses[len(session.Guesses)-1].PlayedAt
 				return pgtype.Timestamptz{
-					Time:  t.Time,
-					Valid: t.Valid,
+					Time:  session.Latest().PlayedAt.Time,
+					Valid: session.Latest().PlayedAt.Valid,
 				}
 			}(),
-			PlayedWords: func() []byte {
-				b, err := json.Marshal(session.Guesses)
-				if err != nil {
-					errors = append(errors, errs.B().Msgf("failed to convert played words to json for player %d", player.ID).
-						Err())
-					return nil
-				}
-				return b
-			}(),
-			// TODO: fill these
-			CorrectGuesses:     pgtype.Int4{},
-			CorrectGuessesTime: pgtype.Timestamptz{},
-		})
+			PlayedWords:    session.JSON(),
+			CorrectGuesses: pgtype.Int4{Int32: int32(guess.CorrectCount()), Valid: guess.PlayedAt.Valid},
+			CorrectGuessesTime: pgtype.Timestamptz{
+				Time:  guess.PlayedAt.Time,
+				Valid: guess.PlayedAt.Valid,
+			}})
 		if err != nil {
 			errors = append(errors, err)
 		}
@@ -141,7 +136,7 @@ func (r *GameRepo) SaveGame(ctx context.Context, g *game.Game) error {
 
 // GetGames implements repository.Game.
 func (r *GameRepo) GetGames(ctx context.Context, playerID int) ([]game.Game, error) {
-	games, err := r.PlayerGames(ctx, pgen.PlayerGamesParams{
+	games, err := r.q.PlayerGames(ctx, pgen.PlayerGamesParams{
 		PlayerID: int32(playerID),
 		Limit:    pgtype.Int4{}, // no limit for now
 		Offset:   0,             // start from the beginning
@@ -158,12 +153,12 @@ func (r *GameRepo) GetGames(ctx context.Context, playerID int) ([]game.Game, err
 
 func (r *GameRepo) createGame(ctx context.Context, tx pgx.Tx, g *game.Game) error {
 	// Get creator's ID
-	player, err := r.WithTx(tx).FetchPlayerByUsername(ctx, g.Creator)
+	player, err := r.q.WithTx(tx).FetchPlayerByUsername(ctx, g.Creator)
 	if err != nil {
 		return err
 	}
 	// Create the game
-	err = r.WithTx(tx).CreateGame(ctx, pgen.CreateGameParams{
+	err = r.q.WithTx(tx).CreateGame(ctx, pgen.CreateGameParams{
 		ID:          pgtype.UUID{Bytes: g.ID, Valid: true},
 		Creator:     player.ID,
 		CorrectWord: g.CorrectWord.Word,
@@ -196,10 +191,10 @@ type DBTX interface {
 	pgx.Tx
 }
 
-func NewGameRepo(db DBTX) *GameRepo {
+func NewGameRepo(db *pgxpool.Pool) *GameRepo {
 	return &GameRepo{
-		db:      db,
-		Queries: pgen.New(db),
+		db: db,
+		q:  pgen.New(db),
 	}
 }
 

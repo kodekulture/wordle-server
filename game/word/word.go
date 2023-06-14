@@ -49,6 +49,15 @@ func (w *Word) Correct() bool {
 	return true
 }
 
+func (w *Word) CorrectCount() (c int) {
+	for _, s := range w.Stats {
+		if s == Correct {
+			c++
+		}
+	}
+	return c
+}
+
 // CompareTo compares the word to the correct word
 // sets the LetterStatus of each letter of `w` *Word
 // and returns LetterStatus of each letter of Word accordingly

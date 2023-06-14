@@ -1,6 +1,7 @@
 package game
 
 import (
+	"encoding/json"
 	"time"
 
 	"github.com/google/uuid"
@@ -101,6 +102,31 @@ func (s *Session) Won() bool {
 	}
 	last := s.Guesses[len(s.Guesses)-1]
 	return last.Correct()
+}
+
+func (s *Session) Latest() word.Word {
+	if len(s.Guesses) == 0 {
+		return word.Word{}
+	}
+	return s.Guesses[len(s.Guesses)-1]
+}
+
+func (s *Session) JSON() []byte {
+	// Error is ignored because we know that the struct is valid
+	b, _ := json.Marshal(s.Guesses)
+	return b
+}
+
+func (s *Session) BestGuess() (w word.Word) {
+	var c int
+	for _, guess := range s.Guesses {
+		v := guess.CorrectCount()
+		if v > c {
+			c = v
+			w = guess
+		}
+	}
+	return w
 }
 
 // Ended returns true if the user has finished up all their guesses or they have won the game (guessed the correct word)
