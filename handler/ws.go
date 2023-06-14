@@ -141,9 +141,9 @@ func (r *Room) play(m Payload) {
 		m.sender.write(newPayload(CError, "Room isn't active", ""))
 		return
 	}
-	session, ok := r.g.Sessions[m.sender.Username]
+	session := r.g.Sessions[m.sender.Username]
 	// If the user is not in the game, return an error
-	if !ok || session == nil {
+	if session == nil {
 		m.sender.write(newPayload(CError, "Invalid user session", ""))
 		return
 	}
@@ -194,31 +194,22 @@ func (r *Room) join(username string, conn *websocket.Conn) {
 	r.mu.Lock()
 	old := r.players[username]
 	r.mu.Unlock()
+	// Kickout the old player with the same username
 	if old != nil {
 		r.kickout(old)
 	}
-
+	// Create a new playerConn
 	new := newPlayerConn(conn, r, username)
-
-	// Reject join request if the game has already started and user wasn't a member
-	if _, ok := r.g.Sessions[username]; !ok && r.active {
-		new.write(newPayload(CError, "Your are not a member of this game", ""))
-		new.Close()
-		return
-	}
 	// Create a new session for the user if it doesn't exist
 	if _, ok := r.g.Sessions[username]; !ok {
 		r.g.Join(username)
 	}
-
 	// Add the `new` player to the room and remove the `old` player
 	r.mu.Lock()
 	r.players[username] = new
 	r.mu.Unlock()
-
 	// Send the player his current state in the game
 	new.write(newPayload(CData, r.g.Sessions[username].Guesses, ""))
-
 	// Notify players that that a new player has joined
 	text := fmt.Sprintf("%s has joined", new.PName())
 	r.sendAll(newPayload(CJoin, text, ""))
@@ -239,9 +230,10 @@ func (r *Room) leave() {
 	for p := range r.leaveChan {
 		r.mu.Lock()
 		p.Close()
-		p.room = nil
+		p.room = nil // set room to nil to free memory
 		// If currect loged in user is the same as the player
-		// that is being kicked out, remove the player from the room
+		// that is being kicked out, remove the player from the room.
+		// This check is made to avoid kicking a the new player who just joined
 		if r.players[p.Username] == p {
 			delete(r.players, p.PName())
 		}
@@ -263,11 +255,15 @@ func (r *Room) close() error {
 	}
 	r.closed = true
 	r.active = false
+	// Cancel the context to stop the `leave` goroutine and close
+	// all prevent any new players from sending messages to the room.
 	r.cancelCtx()
 	r.mu.Lock()
 	defer r.mu.Unlock()
+	// Close all players connection
 	for _, p := range r.players {
 		p.Close()
+		delete(r.players, p.PName())
 	}
 	close(r.broadcast)
 	close(r.leaveChan)
@@ -299,6 +295,8 @@ func (r *Room) sendAll(payload Payload) {
 	for _, p := range r.players {
 		err := p.write(payload)
 		if err != nil {
+			// r.kickout(p) is called in a goroutine to avoid mutext lock
+			// since the lock is already acquired in this function
 			go func(p *PlayerConn) {
 				r.kickout(p)
 			}(p)
@@ -327,6 +325,9 @@ func (p *PlayerConn) PName() string {
 // Also starts the ping goroutine to ping the player every 5 seconds
 // to check if the player is still connected otherwise the connection is closed.
 func newPlayerConn(conn *websocket.Conn, room *Room, username string) *PlayerConn {
+	// Create a ticker to ping the player every 5 seconds
+	// The ticker is stored in the player struct so that it can be stopped
+	// on the player.Close() call.
 	ticker := time.NewTicker(time.Second * 5)
 	player := PlayerConn{
 		Username: username,
@@ -369,7 +370,7 @@ func (p *PlayerConn) read() {
 		if err != nil {
 			// If the error is not a close error, then the player is kicked out.
 			// if !websocket.IsCloseError(err, websocket.CloseNormalClosure, websocket.CloseAbnormalClosure) {
-			// 	p.room.kickout(p.PName())
+			// 	p.room.kickout(p)
 			// }
 			return
 		}
