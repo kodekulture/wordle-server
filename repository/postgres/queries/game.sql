@@ -30,3 +30,6 @@ UPDATE game SET ended_at = coalesce($2, NOW()) WHERE id = $1;
 INSERT INTO game_player (game_id, player_id) VALUES ($1, $2)
 ON CONFLICT (game_id, player_id) 
 DO UPDATE SET played_words=$3, correct_guesses=$4, correct_guesses_time=$5, finished=$6;
+
+-- name: CreateGame :exec
+INSERT INTO game (id, creator, correct_word) VALUES ($1, $2, $3);

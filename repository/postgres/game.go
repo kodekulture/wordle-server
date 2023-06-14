@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	"fmt"
 	"strings"
 	"time"
 
@@ -36,7 +35,6 @@ func (r *GameRepo) SaveGame(ctx context.Context, g *game.Game) error {
 		return errs.B().Msg("game must not be nil in SaveGame").Err()
 	}
 	var (
-		gdb pgen.Game
 		tx  pgx.Tx
 		err error
 	)
@@ -47,21 +45,20 @@ func (r *GameRepo) SaveGame(ctx context.Context, g *game.Game) error {
 	}
 	defer tx.Rollback(ctx)
 
-	// fetch the game if it exists
-	uid := pgtype.UUID{
-		Bytes: [16]byte(g.ID),
-		Valid: true,
-	}
-	gdb, err = r.WithTx(tx).FetchGame(ctx, uid)
+	// fetch the game or create it if it doesn't exists
+	uid := pgtype.UUID{Bytes: g.ID, Valid: true}
+	_, err = r.WithTx(tx).FetchGame(ctx, uid)
 	if err != nil {
 		if err != pgx.ErrNoRows {
 			return err
 		}
-		err = createGame(ctx, tx, g)
+		// Create the game if it does not exist
+		err = r.createGame(ctx, tx, g)
 		if err != nil {
 			return err
 		}
 	}
+
 	// fetch all of the players in the game
 	p, err := r.WithTx(tx).GamePlayers(ctx, uid)
 	if err != nil {
@@ -117,8 +114,7 @@ func (r *GameRepo) SaveGame(ctx context.Context, g *game.Game) error {
 			PlayedWords: func() []byte {
 				b, err := json.Marshal(session.Guesses)
 				if err != nil {
-					errors = append(errors, errs.B().Msg(
-						fmt.Sprintf("failed to convert played words to json for player %s", player.ID)).
+					errors = append(errors, errs.B().Msgf("failed to convert played words to json for player %d", player.ID).
 						Err())
 					return nil
 				}
@@ -160,8 +156,22 @@ func (r *GameRepo) GetGames(ctx context.Context, playerID int) ([]game.Game, err
 	return result, nil
 }
 
-func createGame() error {
-
+func (r *GameRepo) createGame(ctx context.Context, tx pgx.Tx, g *game.Game) error {
+	// Get creator's ID
+	player, err := r.WithTx(tx).FetchPlayerByUsername(ctx, g.Creator)
+	if err != nil {
+		return err
+	}
+	// Create the game
+	err = r.WithTx(tx).CreateGame(ctx, pgen.CreateGameParams{
+		ID:          pgtype.UUID{Bytes: g.ID, Valid: true},
+		Creator:     player.ID,
+		CorrectWord: g.CorrectWord.Word,
+	})
+	if err != nil {
+		return err
+	}
+	return nil
 }
 
 func toNilTime(t pgtype.Timestamptz) *time.Time {

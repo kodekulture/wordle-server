@@ -11,6 +11,21 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
+const createGame = `-- name: CreateGame :exec
+INSERT INTO game (id, creator, correct_word) VALUES ($1, $2, $3)
+`
+
+type CreateGameParams struct {
+	ID          pgtype.UUID
+	Creator     int32
+	CorrectWord string
+}
+
+func (q *Queries) CreateGame(ctx context.Context, arg CreateGameParams) error {
+	_, err := q.db.Exec(ctx, createGame, arg.ID, arg.Creator, arg.CorrectWord)
+	return err
+}
+
 const fetchGame = `-- name: FetchGame :one
 SELECT id, creator, correct_word, created_at, started_at, ended_at from game WHERE id = $1
 `

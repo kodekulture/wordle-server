@@ -16,5 +16,8 @@ migrate-up:
 migrate-down:
 	migrate -path repository/postgres/migrations -database "postgresql://$(POSTGRES_USER):$(POSTGRES_PASSWORD)@$(POSTGRES_HOST):$(POSTGRES_PORT)/$(POSTGRES_DB)?sslmode=disable" -verbose down
 
+sqlc:
+	sqlc generate -f ./sqlc.yaml
+
 build:
 	docker build -t wordle-server:$TAG -f ./Dockerfile --target production .
