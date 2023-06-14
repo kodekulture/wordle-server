@@ -4,6 +4,10 @@ import (
 	"context"
 	"errors"
 	"log"
+	"net/http"
+	"os"
+	"os/signal"
+	"syscall"
 	"time"
 
 	"github.com/caarlos0/env/v8"
@@ -33,8 +37,9 @@ func main() {
 		log.Fatal(err)
 	}
 	h := handler.New(srv, tokener)
+	go shutdown(h)
 	log.Printf("server started on port: %s", config.Port)
-	if err = h.Start(config.Port); err != nil {
+	if err = h.Start(config.Port); err != nil && !errors.Is(err, http.ErrServerClosed) {
 		log.Fatal(err)
 	}
 }
@@ -49,6 +54,19 @@ func getConnection(ctx context.Context) (*pgxpool.Pool, error) {
 		return nil, errors.Join(err, errors.New("failed to ping database"))
 	}
 	return conn, nil
+}
+
+func shutdown(s *handler.Handler) {
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second*5)
+	defer cancel()
+	// Wait for interrupt signal to gracefully shutdown the server with
+	sig := make(chan os.Signal, 1)
+	signal.Notify(sig, os.Interrupt, syscall.SIGTERM)
+	<-sig
+	err := s.Stop(ctx)
+	if err != nil {
+		log.Fatal(err)
+	}
 }
 
 var config struct {

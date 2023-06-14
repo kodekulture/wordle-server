@@ -1,7 +1,7 @@
 package handler
 
 import (
-	"fmt"
+	"context"
 	"log"
 	"net/http"
 
@@ -17,6 +17,7 @@ import (
 )
 
 type Handler struct {
+	s       *http.Server
 	router  chi.Router
 	srv     *service.Service
 	token   token.Handler
@@ -37,7 +38,8 @@ func New(srv *service.Service, tokenHandler token.Handler) *Handler {
 }
 
 func (h *Handler) Start(port string) error {
-	return http.ListenAndServe(fmt.Sprintf(":%s", port), h.router)
+	h.s = &http.Server{Addr: ":" + port, Handler: h.router}
+	return h.s.ListenAndServe()
 }
 
 func (h *Handler) setup() {
@@ -175,4 +177,8 @@ func (h *Handler) room(w http.ResponseWriter, r *http.Request) {
 	// 1. get the user from the context
 	// 2. get the room id from the url params
 	// 3. return the game details for this room as well as the words this user played in this game
+}
+
+func (h *Handler) Stop(ctx context.Context) error {
+	return h.s.Shutdown(ctx)
 }
