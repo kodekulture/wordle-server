@@ -67,5 +67,5 @@ func (h *Handler) live(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	room.Join(username, conn)
+	go room.join(username, conn)
 }

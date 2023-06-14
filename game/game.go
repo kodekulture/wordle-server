@@ -95,15 +95,6 @@ type Session struct {
 	Guesses []word.Word
 }
 
-// Won returns true if the last guess is correct
-func (s *Session) Won() bool {
-	if len(s.Guesses) == 0 {
-		return false
-	}
-	last := s.Guesses[len(s.Guesses)-1]
-	return last.Correct()
-}
-
 func (s *Session) Latest() word.Word {
 	if len(s.Guesses) == 0 {
 		return word.Word{}
@@ -127,6 +118,20 @@ func (s *Session) BestGuess() (w word.Word) {
 		}
 	}
 	return w
+}
+
+// Won returns true if the last guess is correct
+func (s *Session) Won() bool {
+	if len(s.Guesses) == 0 {
+		return false
+	}
+	last := s.Guesses[len(s.Guesses)-1]
+	return last.Correct()
+}
+
+// CanPlay returns true if the user can still play (has not exceeded the maximum number of guesses)
+func (s *Session) CanPlay() bool {
+	return len(s.Guesses) < MaxGuesses
 }
 
 // Ended returns true if the user has finished up all their guesses or they have won the game (guessed the correct word)

@@ -1,7 +1,8 @@
 package handler
 
 import (
-	"fmt"
+	"context"
+	"log"
 	"net/http"
 
 	"github.com/go-chi/chi/v5"
@@ -16,6 +17,7 @@ import (
 )
 
 type Handler struct {
+	s       *http.Server
 	router  chi.Router
 	srv     *service.Service
 	token   token.Handler
@@ -30,12 +32,14 @@ func New(srv *service.Service, tokenHandler token.Handler) *Handler {
 		wordGen: word.NewLocalGen(),
 	}
 
+	Hub.s = srv
 	h.setup()
 	return h
 }
 
 func (h *Handler) Start(port string) error {
-	return http.ListenAndServe(fmt.Sprintf(":%s", port), h.router)
+	h.s = &http.Server{Addr: ":" + port, Handler: h.router}
+	return h.s.ListenAndServe()
 }
 
 func (h *Handler) setup() {
@@ -139,6 +143,7 @@ func (h *Handler) createRoom(w http.ResponseWriter, r *http.Request) {
 	}
 	// 2. create a room with the user as the creator and store this room in temporary area (Hub)
 	wrd := h.wordGen.Generate(word.Length)
+	log.Println(wrd)
 	g := game.New(player.Username, word.New(wrd))
 	room := NewRoom(g)
 
@@ -172,4 +177,8 @@ func (h *Handler) room(w http.ResponseWriter, r *http.Request) {
 	// 1. get the user from the context
 	// 2. get the room id from the url params
 	// 3. return the game details for this room as well as the words this user played in this game
+}
+
+func (h *Handler) Stop(ctx context.Context) error {
+	return h.s.Shutdown(ctx)
 }
