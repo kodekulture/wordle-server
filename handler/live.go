@@ -4,8 +4,10 @@ import (
 	"log"
 	"net/http"
 
+	"github.com/Chat-Map/wordle-server/game"
 	"github.com/google/uuid"
 	"github.com/gorilla/websocket"
+	"github.com/lordvidex/x/resp"
 )
 
 var (
@@ -60,6 +62,23 @@ func (h *Handler) live(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	var (
+		player game.Player
+	)
+	// Check if the user already has a session
+	sess := room.g.Sessions[username]
+	if sess == nil {
+		// Fetch the player from the database
+		pl, err := h.srv.GetPlayer(r.Context(), username)
+		if err != nil {
+			resp.Error(w, err)
+			return
+		}
+		player = *pl
+	} else {
+		player = sess.Player
+	}
+
 	// Upgrade the HTTP connection to a websocket connection
 	conn, err := upgrader.Upgrade(w, r, nil)
 	if err != nil {
@@ -67,5 +86,5 @@ func (h *Handler) live(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	go room.join(username, conn)
+	go room.join(player, conn)
 }

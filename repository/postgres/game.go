@@ -2,8 +2,6 @@ package postgres
 
 import (
 	"context"
-	"errors"
-	"strings"
 	"time"
 
 	"github.com/google/uuid"
@@ -26,13 +24,9 @@ type GameRepo struct {
 	q  *pgen.Queries
 }
 
-// SaveGame implements repository.Game.
-// SaveGame should be mostly an internal function because clients should not save their games themselves.
-//
-// Saving a game should be triggered by the status of the game itself (from the Hub)
-func (r *GameRepo) SaveGame(ctx context.Context, g *game.Game) error {
+func (r *GameRepo) StartGame(ctx context.Context, g *game.Game) error {
 	if g == nil {
-		return errs.B().Msg("game must not be nil in SaveGame").Err()
+		return errs.B().Msg("game must not be nil in StartGame").Err()
 	}
 	var (
 		tx  pgx.Tx
@@ -47,91 +41,98 @@ func (r *GameRepo) SaveGame(ctx context.Context, g *game.Game) error {
 
 	// fetch the game or create it if it doesn't exists
 	uid := pgtype.UUID{Bytes: g.ID, Valid: true}
-	_, err = r.q.WithTx(tx).FetchGame(ctx, uid)
-	if err != nil {
-		if err != pgx.ErrNoRows {
-			return err
-		}
-		// Create the game if it does not exist
-		err = r.createGame(ctx, tx, g)
-		if err != nil {
-			return err
-		}
-	}
 
-	// fetch all of the players in the game
-	p, err := r.q.WithTx(tx).GamePlayers(ctx, uid)
+	// Get creator's ID
+	player, err := r.q.WithTx(tx).FetchPlayerByUsername(ctx, g.Creator)
 	if err != nil {
 		return err
 	}
-	var playerMap = make(map[string]pgen.GamePlayersRow)
-	for _, player := range p {
-		playerMap[player.Username] = player
-	}
-	// update the game
-	switch {
-	case g.EndedAt != nil:
-		err = r.q.WithTx(tx).FinishGame(ctx, pgen.FinishGameParams{
-			ID: uid,
-			EndedAt: pgtype.Timestamptz{
-				Time:  ptr.ToObj(g.EndedAt),
-				Valid: g.EndedAt != nil,
-			}})
-	case g.StartedAt != nil:
-		err = r.q.WithTx(tx).StartGame(ctx, pgen.StartGameParams{
-			ID: uid,
-			StartedAt: pgtype.Timestamptz{
-				Time:  ptr.ToObj(g.StartedAt),
-				Valid: g.StartedAt != nil,
-			}})
-	default:
-		return errs.B().Msg("game can only be saved when starting or ending").Err()
-	}
+	// Create the game
+	err = r.q.WithTx(tx).CreateGame(ctx, pgen.CreateGameParams{
+		ID:          uid,
+		Creator:     player.ID,
+		CorrectWord: g.CorrectWord.Word,
+		CreatedAt:   pgtype.Timestamptz{Time: g.CreatedAt, Valid: true},
+		StartedAt:   pgtype.Timestamptz{Time: ptr.ToObj(g.StartedAt), Valid: g.StartedAt != nil},
+	})
 	if err != nil {
 		return err
 	}
-	// update the player's sessions
-	var errors []error
-	for username, session := range g.Sessions {
-		player, ok := playerMap[username]
-		if !ok {
-			errors = append(errors, errs.B().Msgf("player %s not found in game %s and data was not updated", username, g.ID).Err())
-			continue
-		}
-		guess := session.BestGuess()
-		err = r.q.WithTx(tx).UpdatePlayerStats(ctx, pgen.UpdatePlayerStatsParams{
+	// Create the game player
+	args := make([]pgen.CreateGamePlayersParams, 0, len(g.Sessions))
+	for _, s := range g.Sessions {
+		args = append(args, pgen.CreateGamePlayersParams{
 			GameID:   uid,
-			PlayerID: player.ID,
-			Finished: func() pgtype.Timestamptz {
-				// if the session has not ended, then the player has not finished
-				// so we return a null value
-				if session.Ended() {
-					return pgtype.Timestamptz{}
-				}
-				return pgtype.Timestamptz{
-					Time:  session.Latest().PlayedAt.Time,
-					Valid: session.Latest().PlayedAt.Valid,
-				}
-			}(),
-			PlayedWords:    session.JSON(),
-			CorrectGuesses: pgtype.Int4{Int32: int32(guess.CorrectCount()), Valid: guess.PlayedAt.Valid},
+			PlayerID: int32(s.Player.ID),
+		})
+	}
+	_, err = r.q.WithTx(tx).CreateGamePlayers(ctx, args)
+	if err != nil {
+		return err
+	}
+	return tx.Commit(ctx)
+}
+
+// FinishGame implements repository.Game.
+// FinishGame should be mostly an internal function because clients should not save their games themselves.
+//
+// Update a game should be triggered by the status of the game itself (from the Hub)
+func (r *GameRepo) FinishGame(ctx context.Context, g *game.Game) error {
+	if g == nil {
+		return errs.B().Msg("game must not be nil in StartGame").Err()
+	}
+	if g.EndedAt == nil {
+		return errs.B().Msg("the game has not finished").Err()
+	}
+	var (
+		tx  pgx.Tx
+		err error
+		gm  pgen.Game
+	)
+	// create a transaction
+	tx, err = r.db.Begin(ctx)
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback(ctx)
+
+	uid := pgtype.UUID{Bytes: g.ID, Valid: true}
+
+	// fetch the game from the database
+	gm, err = r.q.WithTx(tx).FetchGame(ctx, uid)
+	if err != nil {
+		return err
+	}
+	// Update game, set as finished
+	err = r.q.FinishGame(ctx, pgen.FinishGameParams{
+		ID:      uid,
+		EndedAt: pgtype.Timestamptz{Time: ptr.ToObj(g.EndedAt), Valid: true},
+	})
+	if err != nil {
+		return err
+	}
+	// Update gamePlayers and set the played words
+	for _, s := range g.Sessions {
+		r.q.WithTx(tx).UpdateGamePlayer(ctx, pgen.UpdateGamePlayerParams{
+			GameID:      gm.ID,
+			PlayerID:    int32(s.Player.ID),
+			PlayedWords: s.JSON(),
+			CorrectGuesses: pgtype.Int4{
+				Int32: int32(s.BestGuess().CorrectCount()),
+				Valid: len(s.Guesses) > 0,
+			},
 			CorrectGuessesTime: pgtype.Timestamptz{
-				Time:  guess.PlayedAt.Time,
-				Valid: guess.PlayedAt.Valid,
-			}})
-		if err != nil {
-			errors = append(errors, err)
-		}
+				Time:  s.BestGuess().PlayedAt.Time,
+				Valid: len(s.Guesses) > 0,
+			},
+			Finished: pgtype.Timestamptz{
+				Time:  s.BestGuess().PlayedAt.Time,
+				Valid: s.Won(),
+			},
+		})
 	}
 	// commit
-	err = tx.Commit(ctx)
-	if err != nil {
-		errors = append(errors, err)
-	}
-	if len(errors) > 0 {
-		return joinErrs(errors...)
-	}
-	return nil
+	return tx.Commit(ctx)
 }
 
 // GetGames implements repository.Game.
@@ -151,44 +152,12 @@ func (r *GameRepo) GetGames(ctx context.Context, playerID int) ([]game.Game, err
 	return result, nil
 }
 
-func (r *GameRepo) createGame(ctx context.Context, tx pgx.Tx, g *game.Game) error {
-	// Get creator's ID
-	player, err := r.q.WithTx(tx).FetchPlayerByUsername(ctx, g.Creator)
-	if err != nil {
-		return err
-	}
-	// Create the game
-	err = r.q.WithTx(tx).CreateGame(ctx, pgen.CreateGameParams{
-		ID:          pgtype.UUID{Bytes: g.ID, Valid: true},
-		Creator:     player.ID,
-		CorrectWord: g.CorrectWord.Word,
-	})
-	if err != nil {
-		return err
-	}
-	return nil
-}
-
 func toNilTime(t pgtype.Timestamptz) *time.Time {
 	if !t.Valid {
 		return nil
 	}
 	ret := t.Time
 	return &ret
-}
-
-func joinErrs(errs ...error) error {
-	var b strings.Builder
-	for _, err := range errs {
-		b.WriteString(err.Error())
-		b.WriteString("\n\n")
-	}
-	return errors.New(b.String())
-}
-
-type DBTX interface {
-	pgen.DBTX
-	pgx.Tx
 }
 
 func NewGameRepo(db *pgxpool.Pool) *GameRepo {

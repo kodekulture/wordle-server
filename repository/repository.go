@@ -22,6 +22,9 @@ type Game interface {
 	// GetGames returns all games of a player
 	GetGames(ctx context.Context, playerID int) ([]game.Game, error)
 
-	// SaveGame saves a game into the dababase as well as the player's sessions
-	SaveGame(ctx context.Context, g *game.Game) error
+	// StartGame saves a game at the beginning of the game
+	StartGame(ctx context.Context, g *game.Game) error
+
+	// FinishGame saves a game at the end of the game
+	FinishGame(context.Context, *game.Game) error
 }

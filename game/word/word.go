@@ -40,7 +40,7 @@ func (w *Word) Runes() []rune {
 }
 
 // Correct returns true if the word is correct
-func (w *Word) Correct() bool {
+func (w Word) Correct() bool {
 	for _, c := range w.Stats {
 		if c != Correct {
 			return false
@@ -49,7 +49,7 @@ func (w *Word) Correct() bool {
 	return true
 }
 
-func (w *Word) CorrectCount() (c int) {
+func (w Word) CorrectCount() (c int) {
 	for _, s := range w.Stats {
 		if s == Correct {
 			c++

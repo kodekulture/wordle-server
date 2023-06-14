@@ -114,7 +114,7 @@ func (r *Room) start(m Payload) {
 	r.g.Start()
 	// Save the game to the database
 	// TODO: Uncomment this when the database is ready
-	_ = Hub.s.SaveGame(r.ctx, r.g)
+	_ = Hub.s.StartGame(r.ctx, r.g)
 	// if err != nil {
 	// 	m.sender.write(newPayload(CError, "Failed to start game", ""))
 	// 	return
@@ -190,26 +190,26 @@ func (r *Room) play(m Payload) {
 	}
 }
 
-func (r *Room) join(username string, conn *websocket.Conn) {
+func (r *Room) join(user game.Player, conn *websocket.Conn) {
 	r.mu.Lock()
-	old := r.players[username]
+	old := r.players[user.Username]
 	r.mu.Unlock()
 	// Kickout the old player with the same username
 	if old != nil {
 		r.kickout(old)
 	}
 	// Create a new playerConn
-	new := newPlayerConn(conn, r, username)
+	new := newPlayerConn(conn, r, user.Username)
 	// Create a new session for the user if it doesn't exist
-	if _, ok := r.g.Sessions[username]; !ok {
-		r.g.Join(username)
+	if _, ok := r.g.Sessions[user.Username]; !ok {
+		r.g.Join(user)
 	}
 	// Add the `new` player to the room and remove the `old` player
 	r.mu.Lock()
-	r.players[username] = new
+	r.players[user.Username] = new
 	r.mu.Unlock()
 	// Send the player his current state in the game
-	new.write(newPayload(CData, r.g.Sessions[username].Guesses, ""))
+	new.write(newPayload(CData, r.g.Sessions[user.Username].Guesses, ""))
 	// Notify players that that a new player has joined
 	text := fmt.Sprintf("%s has joined", new.PName())
 	r.sendAll(newPayload(CJoin, text, ""))
@@ -244,14 +244,9 @@ func (r *Room) leave() {
 
 // close closes the room and all players in the room.
 // This is used when the game is finished.
-func (r *Room) close() error {
-	defer func() {
-		if er := recover(); er != nil {
-			log.Println("Error recovered", er)
-		}
-	}()
+func (r *Room) close() {
 	if r.closed {
-		return nil // TODO: return room already closed error
+		return
 	}
 	r.closed = true
 	r.active = false
@@ -267,7 +262,6 @@ func (r *Room) close() error {
 	}
 	close(r.broadcast)
 	close(r.leaveChan)
-	return nil
 }
 
 // run processes all messages sent to the room.

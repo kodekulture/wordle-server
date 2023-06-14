@@ -101,7 +101,7 @@ func TestGame_Session(t *testing.T) {
 
 func TestGame_Join(t *testing.T) {
 	g := New("test", word.New("SOMEA"))
-	g.Join("fela")
+	g.Join(Player{Username: "fela"})
 	assert.Equal(t, 1, len(g.Sessions))
 	_, ok := g.Sessions["fela"]
 	assert.True(t, ok)

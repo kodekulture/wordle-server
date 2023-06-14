@@ -19,17 +19,16 @@ WHERE gp.game_id = $1;
 -- name: FetchGame :one
 SELECT * from game WHERE id = $1;
 
--- name: StartGame :exec
-UPDATE game SET started_at = coalesce($2, NOW()) WHERE id = $1;
-
 -- name: FinishGame :exec
 UPDATE game SET ended_at = coalesce($2, NOW()) WHERE id = $1;
 
--- name: UpdatePlayerStats :exec
--- This upserts the player stats if they were not already present
-INSERT INTO game_player (game_id, player_id) VALUES ($1, $2)
-ON CONFLICT (game_id, player_id) 
-DO UPDATE SET played_words=$3, correct_guesses=$4, correct_guesses_time=$5, finished=$6;
+-- name: CreateGamePlayers :copyfrom
+INSERT INTO game_player (game_id, player_id) VALUES ($1, $2);
+
+-- name: UpdateGamePlayer :exec
+-- This updates the player stats at the end of the game
+UPDATE game_player SET played_words=$3, correct_guesses=$4, correct_guesses_time=$5, finished=$6 
+WHERE game_id=$1 AND player_id=$2;
 
 -- name: CreateGame :exec
-INSERT INTO game (id, creator, correct_word) VALUES ($1, $2, $3);
+INSERT INTO game (id, creator, correct_word, created_at, started_at) VALUES ($1, $2, $3, $4, $5);

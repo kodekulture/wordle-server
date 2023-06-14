@@ -21,6 +21,10 @@ type Service struct {
 	pr repository.Player
 }
 
+func (s *Service) ComparePasswords(hash, original string) error {
+	return s.h.Compare(hash, original)
+}
+
 func (s *Service) CreatePlayer(ctx context.Context, player *game.Player) error {
 	if player == nil {
 		return ErrNoPlayer
@@ -53,8 +57,8 @@ func (s *Service) GetPlayerRooms(ctx context.Context, playerID int) ([]game.Game
 	return rooms, nil
 }
 
-func (s *Service) SaveGame(ctx context.Context, g *game.Game) error {
-	err := s.gr.SaveGame(ctx, g)
+func (s *Service) StartGame(ctx context.Context, g *game.Game) error {
+	err := s.gr.StartGame(ctx, g)
 	if err != nil {
 		return errs.WrapCode(err, errs.Internal, "error saving game for all players")
 	}

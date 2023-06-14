@@ -96,6 +96,12 @@ func (h *Handler) login(w http.ResponseWriter, r *http.Request) {
 		resp.Error(w, err)
 		return
 	}
+	// validate password
+	if err = h.srv.ComparePasswords(player.Password, payload.Password); err != nil {
+		resp.Error(w, err)
+		return
+	}
+	// generate token
 	if token, err = h.token.Generate(r.Context(), *player); err != nil {
 		resp.Error(w, err)
 		return
@@ -169,6 +175,7 @@ func (h *Handler) rooms(w http.ResponseWriter, r *http.Request) {
 	rooms, err := h.srv.GetPlayerRooms(ctx, player.ID)
 	if err != nil {
 		resp.Error(w, err)
+		return
 	}
 	resp.JSON(w, rooms) // TODO: create separate response type for this
 }

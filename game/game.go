@@ -45,8 +45,8 @@ func (g *Game) Start() {
 }
 
 // Join is used to enter a game before it starts
-func (g *Game) Join(username string) {
-	g.Sessions[username] = &Session{}
+func (g *Game) Join(p Player) {
+	g.Sessions[p.Username] = &Session{Player: p}
 }
 
 // HasEnded returns true if game has ended, otherwise false
@@ -54,12 +54,12 @@ func (g *Game) HasEnded() bool {
 	return g.EndedAt != nil
 }
 
-func New(username string, correctWord word.Word) *Game {
+func New(creator string, correctWord word.Word) *Game {
 	return &Game{
 		ID:          uuid.New(),
 		CreatedAt:   time.Now(),
 		CorrectWord: correctWord,
-		Creator:     username,
+		Creator:     creator,
 		Sessions:    make(map[string]*Session),
 	}
 }
@@ -80,7 +80,7 @@ func (g *Game) Play(player string, guess *word.Word) bool {
 	guess.PlayedAt.Scan(time.Now().UTC())
 	guess.CompareTo(g.CorrectWord)
 	session.Guesses = append(session.Guesses, *guess)
-	if guess.Correct() {
+	if session.Ended() {
 		g.finished++
 		if g.finished == len(g.Sessions) {
 			now := time.Now()
@@ -90,9 +90,18 @@ func (g *Game) Play(player string, guess *word.Word) bool {
 	return true
 }
 
+func (g *Game) Players() []string {
+	usernames := make([]string, len(g.Sessions))
+	for username := range g.Sessions {
+		usernames = append(usernames, username)
+	}
+	return usernames
+}
+
 // Session holds the state of a player's game session.
 type Session struct {
 	Guesses []word.Word
+	Player  Player
 }
 
 func (s *Session) Latest() word.Word {

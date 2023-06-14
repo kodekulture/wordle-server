@@ -12,18 +12,31 @@ import (
 )
 
 const createGame = `-- name: CreateGame :exec
-INSERT INTO game (id, creator, correct_word) VALUES ($1, $2, $3)
+INSERT INTO game (id, creator, correct_word, created_at, started_at) VALUES ($1, $2, $3, $4, $5)
 `
 
 type CreateGameParams struct {
 	ID          pgtype.UUID
 	Creator     int32
 	CorrectWord string
+	CreatedAt   pgtype.Timestamptz
+	StartedAt   pgtype.Timestamptz
 }
 
 func (q *Queries) CreateGame(ctx context.Context, arg CreateGameParams) error {
-	_, err := q.db.Exec(ctx, createGame, arg.ID, arg.Creator, arg.CorrectWord)
+	_, err := q.db.Exec(ctx, createGame,
+		arg.ID,
+		arg.Creator,
+		arg.CorrectWord,
+		arg.CreatedAt,
+		arg.StartedAt,
+	)
 	return err
+}
+
+type CreateGamePlayersParams struct {
+	GameID   pgtype.UUID
+	PlayerID int32
 }
 
 const fetchGame = `-- name: FetchGame :one
@@ -166,27 +179,12 @@ func (q *Queries) PlayerGames(ctx context.Context, arg PlayerGamesParams) ([]Pla
 	return items, nil
 }
 
-const startGame = `-- name: StartGame :exec
-UPDATE game SET started_at = coalesce($2, NOW()) WHERE id = $1
+const updateGamePlayer = `-- name: UpdateGamePlayer :exec
+UPDATE game_player SET played_words=$3, correct_guesses=$4, correct_guesses_time=$5, finished=$6 
+WHERE game_id=$1 AND player_id=$2
 `
 
-type StartGameParams struct {
-	ID        pgtype.UUID
-	StartedAt pgtype.Timestamptz
-}
-
-func (q *Queries) StartGame(ctx context.Context, arg StartGameParams) error {
-	_, err := q.db.Exec(ctx, startGame, arg.ID, arg.StartedAt)
-	return err
-}
-
-const updatePlayerStats = `-- name: UpdatePlayerStats :exec
-INSERT INTO game_player (game_id, player_id) VALUES ($1, $2)
-ON CONFLICT (game_id, player_id) 
-DO UPDATE SET played_words=$3, correct_guesses=$4, correct_guesses_time=$5, finished=$6
-`
-
-type UpdatePlayerStatsParams struct {
+type UpdateGamePlayerParams struct {
 	GameID             pgtype.UUID
 	PlayerID           int32
 	PlayedWords        []byte
@@ -195,9 +193,9 @@ type UpdatePlayerStatsParams struct {
 	Finished           pgtype.Timestamptz
 }
 
-// This upserts the player stats if they were not already present
-func (q *Queries) UpdatePlayerStats(ctx context.Context, arg UpdatePlayerStatsParams) error {
-	_, err := q.db.Exec(ctx, updatePlayerStats,
+// This updates the player stats at the end of the game
+func (q *Queries) UpdateGamePlayer(ctx context.Context, arg UpdateGamePlayerParams) error {
+	_, err := q.db.Exec(ctx, updateGamePlayer,
 		arg.GameID,
 		arg.PlayerID,
 		arg.PlayedWords,
