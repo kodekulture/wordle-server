@@ -13,7 +13,7 @@ import (
 )
 
 const (
-	authHeaderKey = "Authorization"
+	authHeaderKey = "authorization"
 )
 
 type (
@@ -84,15 +84,11 @@ func (h *Handler) authMiddleware(fetchType AuthDecodeType) func(http.Handler) ht
 
 func decodeHeader(auth string) (string, error) {
 	spl := strings.Split(auth, " ")
-	switch len(spl) {
-	case 1:
-		return spl[0], nil
-	case 2:
+	if len(spl) == 2 {
 		if strings.ToLower(spl[0]) != "bearer" {
 			return "", ErrUnauthenticated
 		}
 		return spl[1], nil
-	default:
-		return "", ErrUnauthenticated
 	}
+	return "", ErrUnauthenticated
 }

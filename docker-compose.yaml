@@ -1,0 +1,46 @@
+version: '3.8'
+
+services:
+  app: 
+    container_name: "wordle-app"
+    volumes:
+      - .:/wordle
+    build: 
+      context: .
+      dockerfile: Dockerfile
+      target: development
+    ports:
+      - ${PORT}:${PORT}
+    environment:
+      - POSTGRES_URL=${POSTGRES_URL}
+      - PASETO_KEY=${PASETO_KEY}
+      - PORT=${PORT}
+    healthcheck:
+      test: ["CMD", "curl", "http://localhost:${PORT}/health"]
+      interval: 10s
+      timeout: 30s
+      retries: 5
+    depends_on:
+          - db
+
+    
+  db:
+    container_name: "wordle-db" 
+    image: postgres:latest
+    restart: always
+    environment:
+      - POSTGRES_USERNAME=postgres
+      - POSTGRES_PASSWORD=postgres
+      - POSTGRES_DB=wordle
+    ports:
+      - "5432:5432"
+    volumes:
+        - db:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD", "pg_isready", "-U", "postgres", "-d", "wordle"]
+      interval: 10s
+      timeout: 30s
+      retries: 5
+
+volumes:
+  db:

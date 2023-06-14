@@ -1,11 +1,12 @@
 package game
 
 import (
+	"encoding/json"
 	"time"
 
-	"github.com/Chat-Map/wordle-server/game/word"
-
 	"github.com/google/uuid"
+
+	"github.com/Chat-Map/wordle-server/game/word"
 )
 
 const (
@@ -67,7 +68,7 @@ func New(username string, correctWord word.Word) *Game {
 // It returns a boolean indicating whether the guess changed the game state / the session of the player who played the word.
 //
 // Play also sets the EndTime of the game if the game has ended for every player.
-func (g *Game) Play(player string, guess word.Word) bool {
+func (g *Game) Play(player string, guess *word.Word) bool {
 	session := g.Sessions[player]
 	if session == nil {
 		return false // TODO: player not found
@@ -78,7 +79,7 @@ func (g *Game) Play(player string, guess word.Word) bool {
 	}
 	guess.PlayedAt.Scan(time.Now().UTC())
 	guess.CompareTo(g.CorrectWord)
-	session.Guesses = append(session.Guesses, guess)
+	session.Guesses = append(session.Guesses, *guess)
 	if guess.Correct() {
 		g.finished++
 		if g.finished == len(g.Sessions) {
@@ -101,6 +102,31 @@ func (s *Session) Won() bool {
 	}
 	last := s.Guesses[len(s.Guesses)-1]
 	return last.Correct()
+}
+
+func (s *Session) Latest() word.Word {
+	if len(s.Guesses) == 0 {
+		return word.Word{}
+	}
+	return s.Guesses[len(s.Guesses)-1]
+}
+
+func (s *Session) JSON() []byte {
+	// Error is ignored because we know that the struct is valid
+	b, _ := json.Marshal(s.Guesses)
+	return b
+}
+
+func (s *Session) BestGuess() (w word.Word) {
+	var c int
+	for _, guess := range s.Guesses {
+		v := guess.CorrectCount()
+		if v > c {
+			c = v
+			w = guess
+		}
+	}
+	return w
 }
 
 // Ended returns true if the user has finished up all their guesses or they have won the game (guessed the correct word)

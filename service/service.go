@@ -16,10 +16,9 @@ var (
 
 // TODO: maybe create an interface and put this struct one package down
 type Service struct {
+	h  hasher.Bcrypt
 	gr repository.Game
 	pr repository.Player
-	h  hasher.Bcrypt
-	// TODO: link hub here, so that we can add stuff to temporary area instead of repository
 }
 
 func (s *Service) CreatePlayer(ctx context.Context, player *game.Player) error {
@@ -52,6 +51,14 @@ func (s *Service) GetPlayerRooms(ctx context.Context, playerID int) ([]game.Game
 		return nil, errs.WrapCode(err, errs.InvalidArgument, "error fetching games")
 	}
 	return rooms, nil
+}
+
+func (s *Service) SaveGame(ctx context.Context, g *game.Game) error {
+	err := s.gr.SaveGame(ctx, g)
+	if err != nil {
+		return errs.WrapCode(err, errs.Internal, "error saving game for all players")
+	}
+	return nil
 }
 
 func New(gr repository.Game, pr repository.Player) *Service {

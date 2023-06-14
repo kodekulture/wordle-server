@@ -1,6 +1,7 @@
 package handler
 
 import (
+	"fmt"
 	"net/http"
 
 	"github.com/go-chi/chi/v5"
@@ -34,13 +35,14 @@ func New(srv *service.Service, tokenHandler token.Handler) *Handler {
 }
 
 func (h *Handler) Start(port string) error {
-	return http.ListenAndServe(port, h.router)
+	return http.ListenAndServe(fmt.Sprintf(":%s", port), h.router)
 }
 
 func (h *Handler) setup() {
 	r := h.router
 	// Public routes
 	r.Group(func(r chi.Router) {
+		r.Get("/health", h.health)
 		r.Post("/login", h.login)
 		r.Post("/register", h.register)
 		r.Get("/live", h.live)
@@ -50,12 +52,17 @@ func (h *Handler) setup() {
 	r.Group(func(r chi.Router) {
 		r.Use(h.authMiddleware(AuthDecodeTypeFetch))
 
-		r.Post("/create/room", h.createRoom)
+		r.Post("/room", h.createRoom)
 		r.Get("/join/room/{id}", h.joinRoom)
 		r.Get("/room", h.rooms)
 		r.Get("/room/{id}", h.room)
 	})
 
+}
+
+func (h *Handler) health(w http.ResponseWriter, r *http.Request) {
+	w.WriteHeader(http.StatusOK)
+	w.Write([]byte("OK"))
 }
 
 type loginParams struct {

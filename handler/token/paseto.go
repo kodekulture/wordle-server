@@ -47,10 +47,10 @@ func (p *Paseto) Generate(ctx context.Context, player game.Player) (auth.Token, 
 
 func (p *Paseto) Validate(ctx context.Context, token auth.Token) (game.Player, error) {
 	var payload paseto.JSONToken
-	if err := paseto.Decrypt(string(token), p.symmetricKey, &payload, p.footer); err != nil {
+	if err := paseto.Decrypt(string(token), p.symmetricKey, &payload, &p.footer); err != nil {
 		return game.Player{}, err
 	}
-	if err := payload.Validate(paseto.IssuedBy(p.footer)); err != nil {
+	if err := payload.Validate(paseto.IssuedBy(p.footer), paseto.ValidAt(time.Now())); err != nil {
 		return game.Player{}, err
 	}
 	return p.toPlayer(payload)

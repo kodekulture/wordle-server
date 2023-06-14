@@ -3,6 +3,7 @@
 package word
 
 import (
+	_ "embed"
 	"math/rand"
 	"strconv"
 	"strings"
@@ -10,7 +11,7 @@ import (
 )
 
 var (
-	// go:embed resources/five_letter_words.txt
+	//go:embed resources/five_letter_words.txt
 	fileContent string
 
 	// Length is the length of the word to be guessed
