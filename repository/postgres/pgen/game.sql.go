@@ -41,7 +41,7 @@ type CreateGamePlayersParams struct {
 
 const fetchGame = `-- name: FetchGame :one
 SELECT p.username AS creator_username, g.id, g.creator, g.correct_word, g.created_at, g.started_at, g.ended_at from game g
-JOIN player p ON game.creator = p.id WHERE g.id = $1
+JOIN player p ON g.creator = p.id WHERE g.id = $1
 `
 
 type FetchGameRow struct {
