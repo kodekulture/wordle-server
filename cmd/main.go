@@ -57,12 +57,12 @@ func getConnection(ctx context.Context) (*pgxpool.Pool, error) {
 }
 
 func shutdown(s *handler.Handler) {
-	ctx, cancel := context.WithTimeout(context.Background(), time.Second*5)
-	defer cancel()
 	// Wait for interrupt signal to gracefully shutdown the server with
 	sig := make(chan os.Signal, 1)
 	signal.Notify(sig, os.Interrupt, syscall.SIGTERM)
 	<-sig
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second*5)
+	defer cancel()
 	err := s.Stop(ctx)
 	if err != nil {
 		log.Fatal(err)
