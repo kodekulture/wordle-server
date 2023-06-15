@@ -10,8 +10,8 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/caarlos0/env/v8"
 	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/spf13/viper"
 
 	"github.com/Chat-Map/wordle-server/handler"
 	"github.com/Chat-Map/wordle-server/handler/token"
@@ -19,11 +19,20 @@ import (
 	"github.com/Chat-Map/wordle-server/service"
 )
 
+func readInConfig() error {
+	viper.SetConfigFile(".env") // read from .env
+	viper.AutomaticEnv()        // read from env
+	if err := viper.ReadInConfig(); err != nil {
+		return errors.Join(err, errors.New("failed to read in config"))
+	}
+	return viper.Unmarshal(&config)
+}
+
 func main() {
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second*20)
 	defer cancel()
 
-	err := env.Parse(&config)
+	err := readInConfig()
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -70,7 +79,7 @@ func shutdown(s *handler.Handler) {
 }
 
 var config struct {
-	Port        string `env:"PORT" envDefault:"8080"`
-	PostgresURL string `env:"POSTGRES_URL,required"`
-	PASETOKey   string `env:"PASETO_KEY,required"`
+	Port        string `mapstructure:"PORT"`
+	PostgresURL string `mapstructure:"POSTGRES_URL"`
+	PASETOKey   string `mapstructure:"PASETO_KEY"`
 }

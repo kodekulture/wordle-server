@@ -298,6 +298,13 @@ func (r *Room) sendAll(payload Payload) {
 	}
 }
 
+var (
+	// pongWait is how long we will await a pong response from player
+	pongWait = 10 * time.Second
+
+	pingInterval = (pongWait * 9) / 10
+)
+
 // PlayerConn represents a player in the game.
 // A player can be in multiple rooms, but only one game at a time.
 type PlayerConn struct {
