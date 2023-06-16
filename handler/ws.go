@@ -187,7 +187,10 @@ func (r *Room) play(m Payload) {
 	if r.g.HasEnded() {
 		r.sendAll(newPayload(CFinish, "Game has ended", ""))
 		r.close()
-		Hub.s.FinishGame(context.Background(), r.g)
+		err := Hub.s.FinishGame(context.Background(), r.g)
+		if err != nil {
+			log.Printf("failed to finish game: %v", err)
+		}
 	}
 }
 
@@ -255,12 +258,12 @@ func (r *Room) close() {
 	// all prevent any new players from sending messages to the room.
 	r.cancelCtx()
 	r.mu.Lock()
-	defer r.mu.Unlock()
 	// Close all players connection
 	for _, p := range r.players {
 		p.Close()
 		delete(r.players, p.PName())
 	}
+	r.mu.Unlock()
 	close(r.broadcast)
 	close(r.leaveChan)
 	// Remove the room from the hub to free memory

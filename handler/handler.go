@@ -4,11 +4,13 @@ import (
 	"context"
 	"log"
 	"net/http"
+	"time"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
 	"github.com/lordvidex/errs"
 	"github.com/lordvidex/x/auth"
+	"github.com/lordvidex/x/ptr"
 	"github.com/lordvidex/x/req"
 	"github.com/lordvidex/x/resp"
 
@@ -206,10 +208,20 @@ func (h *Handler) rooms(w http.ResponseWriter, r *http.Request) {
 		resp.Error(w, err)
 		return
 	}
-	resp.JSON(w, rooms) // TODO: create separate response type for this
+	games := make([]gameResponse, len(rooms))
+	for i, g := range rooms {
+		games[i] = toGame(g, player.Username)
+	}
+	resp.JSON(w, games)
 }
 
 func (h *Handler) room(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	player := Player(ctx)
+	if player == nil {
+		resp.Error(w, ErrUnauthenticated)
+		return
+	}
 	id := chi.URLParam(r, "id")
 	uid, err := uuid.Parse(id)
 	if err != nil {
@@ -221,13 +233,55 @@ func (h *Handler) room(w http.ResponseWriter, r *http.Request) {
 		resp.Error(w, err)
 		return
 	}
-	resp.JSON(w, game)
-	// TODO:
-	// 1. get the user from the context
-	// 2. get the room id from the url params
-	// 3. return the game details for this room as well as the words this user played in this game
+	resp.JSON(w, toGame(ptr.ToObj(game), player.Username))
 }
 
 func (h *Handler) Stop(ctx context.Context) error {
 	return h.s.Shutdown(ctx)
+}
+
+type gameResponse struct {
+	ID          uuid.UUID       `json:"id"`
+	Sessions    []guessResponse `json:"sessions"`
+	Creator     string          `json:"creator"`
+	CorrectWord string          `json:"correct_word"`
+	CreatedAt   time.Time       `json:"created_at"`
+	StartedAt   *time.Time      `json:"started_at"`
+	EndedAt     *time.Time      `json:"ended_at"`
+}
+
+type guessResponse struct {
+	Word     string    `json:"word"`
+	PlayedAt time.Time `json:"played_at"`
+	Status   []int     `json:"status"`
+}
+
+func toGame(g game.Game, username string) gameResponse {
+	s := g.Sessions[username]
+	sessions := toGuess(ptr.ToObj(s))
+	return gameResponse{
+		ID:          g.ID,
+		Sessions:    sessions,
+		Creator:     g.Creator,
+		CorrectWord: g.CorrectWord.Word,
+		CreatedAt:   g.CreatedAt,
+		StartedAt:   g.StartedAt,
+		EndedAt:     g.EndedAt,
+	}
+}
+
+func toGuess(s game.Session) []guessResponse {
+	sr := make([]guessResponse, len(s.Guesses))
+	var status []int
+	for _, g := range s.Guesses {
+		for _, v := range g.Stats {
+			status = append(status, int(v))
+		}
+		sr = append(sr, guessResponse{
+			Word:     g.Word,
+			PlayedAt: g.PlayedAt.Time,
+			Status:   status,
+		})
+	}
+	return sr
 }
