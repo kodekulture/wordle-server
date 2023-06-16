@@ -159,14 +159,41 @@ func (h *Handler) createRoom(w http.ResponseWriter, r *http.Request) {
 	result := roomIDResponse{ID: room.g.ID.String()}
 	resp.JSON(w, result)
 }
-func (h *Handler) joinRoom(w http.ResponseWriter, r *http.Request) {
-	// TODO: to be implemented later
-	// 1. get the user from the context
-	// 2. get the room id from the url params
-	// 3. find the room in the temporary area (Hub)
-	// 4a. if room does not exist return error
-	// 4b. if room exists, return a token for the user to join the room with ws
+
+type joinRoomResponse struct {
+	Token string `json:"token"`
 }
+
+// joinRoom creates a new player token used to join a room using websocket connection
+func (h *Handler) joinRoom(w http.ResponseWriter, r *http.Request) {
+	// get the user from the context
+	ctx := r.Context()
+	player := Player(ctx)
+	if player == nil {
+		resp.Error(w, ErrUnauthenticated)
+		return
+	}
+	// get the room id from the url params
+	id := chi.URLParam(r, "id")
+	uid, err := uuid.Parse(id)
+	if err != nil {
+		resp.Error(w, errs.B().Code(errs.InvalidArgument).Msg("invalid parameters").Err())
+		return
+	}
+	// find the room in the temporary area (Hub)
+	Hub.mu.Lock()
+	_, ok := Hub.rooms[uid]
+	Hub.mu.Unlock()
+	if !ok {
+		resp.Error(w, errs.B().Msg("room not found").Err())
+		return
+	}
+	// return a token for the user to join the room with ws
+	token := h.srv.CreateToken(player.Username, uid)
+	result := joinRoomResponse{Token: token}
+	resp.JSON(w, result)
+}
+
 func (h *Handler) rooms(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	player := Player(ctx)
