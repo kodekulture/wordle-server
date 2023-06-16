@@ -183,9 +183,9 @@ func (h *Handler) joinRoom(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	// find the room in the temporary area (Hub)
-	Hub.mu.Lock()
+	Hub.mu.RLock()
 	_, ok := Hub.rooms[uid]
-	Hub.mu.Unlock()
+	Hub.mu.RUnlock()
 	if !ok {
 		resp.Error(w, errs.B().Msg("room not found").Err())
 		return

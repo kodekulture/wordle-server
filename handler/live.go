@@ -4,10 +4,11 @@ import (
 	"log"
 	"net/http"
 
-	"github.com/Chat-Map/wordle-server/game"
 	"github.com/gorilla/websocket"
 	"github.com/lordvidex/errs"
 	"github.com/lordvidex/x/resp"
+
+	"github.com/Chat-Map/wordle-server/game"
 )
 
 var (
@@ -32,9 +33,9 @@ func (h *Handler) live(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Get room from Hub
-	Hub.mu.Lock()
+	Hub.mu.RLock()
 	room, ok := Hub.rooms[gameID]
-	Hub.mu.Unlock()
+	Hub.mu.RUnlock()
 	if !ok {
 		resp.Error(w, errs.B().Code(errs.InvalidArgument).Msg("game not found").Err())
 		return

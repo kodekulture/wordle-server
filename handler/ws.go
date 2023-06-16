@@ -17,7 +17,7 @@ import (
 
 var Hub struct {
 	rooms map[uuid.UUID]*Room
-	mu    sync.Mutex // protects the room map
+	mu    sync.RWMutex // protects the room map
 	s     *service.Service
 }
 
