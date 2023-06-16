@@ -29,7 +29,7 @@ func TestGame_Play(t *testing.T) {
 			g: func() *Game {
 				g := New("fela", word.New("GAMES"))
 				w := word.New("GAMES")
-				w.Stats = w.CompareTo(w)
+				w.Stats = w.Check(w)
 				g.Sessions["fela"] = &Session{Guesses: []word.Word{w}}
 				return g
 			}(),
@@ -55,8 +55,8 @@ func TestGame_Play(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			g := tt.g
 			w := tt.w
-			result := g.Play(tt.player, &w)
-			if tt.expect != result {
+			_, result := g.Play(tt.player, &w)
+			if tt.expect != (result == nil) {
 				t.Errorf("expected %v got %v", tt.expect, result)
 			}
 			if !reflect.DeepEqual(tt.expectStatus, w.Stats) {

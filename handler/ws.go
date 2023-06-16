@@ -9,6 +9,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/gorilla/websocket"
+	"github.com/lordvidex/x/ptr"
 
 	"github.com/Chat-Map/wordle-server/game"
 	"github.com/Chat-Map/wordle-server/game/word"
@@ -170,9 +171,9 @@ func (r *Room) play(m Payload) {
 	}
 	// Process the given word and send error if the word is invalid
 	w := word.New(text)
-	ok = r.g.Play(m.sender.PName(), &w)
-	if !ok {
-		m.sender.write(newPayload(CError, "Invalid word", ""))
+	dRank, err := r.g.Play(m.sender.PName(), &w)
+	if err != nil {
+		m.sender.write(newPayload(CError, err.Error(), ""))
 		return
 	}
 
@@ -180,8 +181,12 @@ func (r *Room) play(m Payload) {
 	m.sender.write(newPayload(CResult, w.Stats, ""))
 
 	// Send the result to all players in the room
-	text = fmt.Sprintf("%s got %d/%d correct", m.From, w.CorrectCount(), len(w.Word))
-	r.sendAll(newPayload(CPlay, text, m.From))
+	result := playerGuessResponse{
+		Username:      m.sender.PName(),
+		GuessResponse: toGuess(w, false),
+		RankOffset:    ptr.Obj(dRank),
+	}
+	r.sendAll(newPayload(CPlay, result, m.From))
 
 	// Check if the game has finished, if so, close the room
 	if r.g.HasEnded() {

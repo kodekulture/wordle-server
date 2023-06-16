@@ -46,12 +46,15 @@ func New(word string) Word {
 	return Word{word, sql.NullTime{}, stats}
 }
 
-func (w *Word) Runes() []rune {
+func (w Word) Runes() []rune {
 	return []rune(w.Word)
 }
 
 // Correct returns true if the word is correct
 func (w Word) Correct() bool {
+	if w.Word == "" || len(w.Stats) == 0 {
+		return false
+	}
 	for _, c := range w.Stats {
 		if c != Correct {
 			return false
@@ -69,12 +72,21 @@ func (w Word) CorrectCount() (c int) {
 	return c
 }
 
-// CompareTo compares the word to the correct word
+// GreaterThan compares `w` with `other` returning true if `w` ranks higher than `other` otherwise false.
+// This function is similar to the `Less` function of the `sort.Interface` interface
+func (w Word) GreaterThan(other Word) bool {
+	if w.CorrectCount() == other.CorrectCount() {
+		return w.PlayedAt.Time.Before(other.PlayedAt.Time)
+	}
+	return w.CorrectCount() > other.CorrectCount()
+}
+
+// Check compares the word to the correct word
 // sets the LetterStatus of each letter of `w` *Word
 // and returns LetterStatus of each letter of Word accordingly
 // Space Complexity: O(n)
 // Time Complexity: O(n)
-func (w *Word) CompareTo(correctWord Word) []LetterStatus {
+func (w *Word) Check(correctWord Word) []LetterStatus {
 	correctRunes := correctWord.Runes()
 	instanceRunes := w.Runes()
 

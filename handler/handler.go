@@ -245,9 +245,9 @@ type gameResponse struct {
 	StartedAt       *time.Time            `json:"started_at"`
 	EndedAt         *time.Time            `json:"ended_at"`
 	Creator         string                `json:"creator"`
-	CorrectWord     string                `json:"correct_word"`
-	Guesses         []guessResponse       `json:"guesses"`          // contains the guesses of the current player
-	GamePerformance []playerGuessResponse `json:"game_performance"` // contains the best guesses of all players
+	CorrectWord     *string               `json:"correct_word,omitempty"` // returned only if game has ended
+	Guesses         []guessResponse       `json:"guesses"`                // contains the guesses of the current player
+	GamePerformance []playerGuessResponse `json:"game_performance"`       // contains the best guesses of all players
 	ID              uuid.UUID             `json:"id"`
 }
 
@@ -261,9 +261,16 @@ type guessResponse struct {
 type playerGuessResponse struct {
 	Username      string        `json:"username,omitempty"`
 	GuessResponse guessResponse `json:"guess_response,omitempty"`
+	RankOffset    *int          `json:"rank_offset,omitempty"`
 }
 
 func toGame(g game.Game, username string) gameResponse {
+	setWord := func(w string) *string {
+		if g.EndedAt == nil {
+			return nil
+		}
+		return ptr.String(w)
+	}
 	perf := make([]playerGuessResponse, 0, len(g.Sessions))
 	for name, s := range g.Sessions {
 		perf = append(perf, playerGuessResponse{
@@ -284,7 +291,7 @@ func toGame(g game.Game, username string) gameResponse {
 		StartedAt:       g.StartedAt,
 		EndedAt:         g.EndedAt,
 		Creator:         g.Creator,
-		CorrectWord:     g.CorrectWord.Word,
+		CorrectWord:     setWord(g.CorrectWord.Word),
 		Guesses:         guesses,
 		GamePerformance: perf,
 		ID:              g.ID,
