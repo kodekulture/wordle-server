@@ -228,7 +228,7 @@ func (h *Handler) room(w http.ResponseWriter, r *http.Request) {
 		resp.Error(w, errs.B().Code(errs.InvalidArgument).Msg("invalid parameters").Err())
 		return
 	}
-	game, err := h.srv.GetGame(r.Context(), uid)
+	game, err := h.srv.GetGame(ctx, uid)
 	if err != nil {
 		resp.Error(w, err)
 		return

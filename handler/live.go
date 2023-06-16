@@ -46,7 +46,7 @@ func (h *Handler) live(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Check if the game has started already
+	// Check if the game has started already and user has not joined
 	if room.active && room.g.Sessions[username] == nil {
 		resp.Error(w, errs.B().Code(errs.InvalidArgument).Msg("you can't join ongoing game").Err())
 		return
