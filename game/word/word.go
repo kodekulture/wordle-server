@@ -5,7 +5,18 @@ import (
 )
 
 // LetterStatus is an enum type for the Status of a letter in a word guess
-type LetterStatus int
+type (
+	LetterStatus   int
+	LetterStatuses []LetterStatus
+)
+
+func (s LetterStatuses) Ints() []int {
+	ints := make([]int, len(s))
+	for i, v := range s {
+		ints[i] = int(v)
+	}
+	return ints
+}
 
 const (
 	Unknown   LetterStatus = iota // The letter has not been played
@@ -27,7 +38,7 @@ const (
 type Word struct {
 	Word     string
 	PlayedAt sql.NullTime
-	Stats    []LetterStatus
+	Stats    LetterStatuses
 }
 
 func New(word string) Word {

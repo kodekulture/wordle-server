@@ -241,47 +241,65 @@ func (h *Handler) Stop(ctx context.Context) error {
 }
 
 type gameResponse struct {
-	ID          uuid.UUID       `json:"id"`
-	Sessions    []guessResponse `json:"sessions"`
-	Creator     string          `json:"creator"`
-	CorrectWord string          `json:"correct_word"`
-	CreatedAt   time.Time       `json:"created_at"`
-	StartedAt   *time.Time      `json:"started_at"`
-	EndedAt     *time.Time      `json:"ended_at"`
+	CreatedAt       time.Time             `json:"created_at"`
+	StartedAt       *time.Time            `json:"started_at"`
+	EndedAt         *time.Time            `json:"ended_at"`
+	Creator         string                `json:"creator"`
+	CorrectWord     string                `json:"correct_word"`
+	Guesses         []guessResponse       `json:"guesses"`          // contains the guesses of the current player
+	GamePerformance []playerGuessResponse `json:"game_performance"` // contains the best guesses of all players
+	ID              uuid.UUID             `json:"id"`
 }
 
 type guessResponse struct {
-	Word     string    `json:"word"`
+	// Word can be nil if the word was not played by this user
+	Word     *string   `json:"word,omitempty"`
 	PlayedAt time.Time `json:"played_at"`
-	Status   []int     `json:"status"`
+	Status   []int     `json:"status,omitempty"`
+}
+
+type playerGuessResponse struct {
+	Username      string        `json:"username,omitempty"`
+	GuessResponse guessResponse `json:"guess_response,omitempty"`
 }
 
 func toGame(g game.Game, username string) gameResponse {
-	s := g.Sessions[username]
-	sessions := toGuess(ptr.ToObj(s))
+	perf := make([]playerGuessResponse, 0, len(g.Sessions))
+	for name, s := range g.Sessions {
+		perf = append(perf, playerGuessResponse{
+			Username:      name,
+			GuessResponse: toGuess(s.BestGuess(), false),
+		})
+	}
+	userSession := g.Sessions[username]
+	guesses := make([]guessResponse, len(userSession.Guesses))
+	for i, guess := range userSession.Guesses {
+		guesses[i] = toGuess(guess, true)
+	}
 	return gameResponse{
-		ID:          g.ID,
-		Sessions:    sessions,
-		Creator:     g.Creator,
-		CorrectWord: g.CorrectWord.Word,
-		CreatedAt:   g.CreatedAt,
-		StartedAt:   g.StartedAt,
-		EndedAt:     g.EndedAt,
+		CreatedAt:       g.CreatedAt,
+		StartedAt:       g.StartedAt,
+		EndedAt:         g.EndedAt,
+		Creator:         g.Creator,
+		CorrectWord:     g.CorrectWord.Word,
+		Guesses:         guesses,
+		GamePerformance: perf,
+		ID:              g.ID,
 	}
 }
 
-func toGuess(s game.Session) []guessResponse {
-	sr := make([]guessResponse, len(s.Guesses))
-	var status []int
-	for _, g := range s.Guesses {
-		for _, v := range g.Stats {
-			status = append(status, int(v))
+// toGuess converts a word.Word to a guessResponse.
+// If showWord is true, the word is returned, otherwise it is nil.
+func toGuess(w word.Word, showWord bool) guessResponse {
+	guessed := func() *string {
+		if showWord {
+			return ptr.String(w.Word)
 		}
-		sr = append(sr, guessResponse{
-			Word:     g.Word,
-			PlayedAt: g.PlayedAt.Time,
-			Status:   status,
-		})
+		return nil
 	}
-	return sr
+	return guessResponse{
+		Word:     guessed(),
+		PlayedAt: w.PlayedAt.Time,
+		Status:   w.Stats.Ints(),
+	}
 }
