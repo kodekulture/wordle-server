@@ -84,6 +84,14 @@ func (s *Service) StartGame(ctx context.Context, g *game.Game) error {
 	return nil
 }
 
+func (s *Service) FinishGame(ctx context.Context, g *game.Game) error {
+	err := s.gr.FinishGame(ctx, g)
+	if err != nil {
+		return errs.WrapCode(err, errs.Internal, "error saving game for all players")
+	}
+	return nil
+}
+
 func New(gr repository.Game, pr repository.Player) *Service {
 	return &Service{
 		r:  random.New(),

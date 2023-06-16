@@ -187,6 +187,7 @@ func (r *Room) play(m Payload) {
 	if r.g.HasEnded() {
 		r.sendAll(newPayload(CFinish, "Game has ended", ""))
 		r.close()
+		Hub.s.FinishGame(context.Background(), r.g)
 	}
 }
 
@@ -262,6 +263,10 @@ func (r *Room) close() {
 	}
 	close(r.broadcast)
 	close(r.leaveChan)
+	// Remove the room from the hub to free memory
+	Hub.mu.Lock()
+	delete(Hub.rooms, r.g.ID)
+	Hub.mu.Unlock()
 }
 
 // run processes all messages sent to the room.
