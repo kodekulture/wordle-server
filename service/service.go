@@ -92,9 +92,9 @@ func (s *Service) FinishGame(ctx context.Context, g *game.Game) error {
 	return nil
 }
 
-func New(gr repository.Game, pr repository.Player) *Service {
+func New(appCtx context.Context, gr repository.Game, pr repository.Player) *Service {
 	return &Service{
-		r:  random.New(),
+		r:  random.New(appCtx),
 		gr: gr,
 		pr: pr,
 	}

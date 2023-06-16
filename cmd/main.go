@@ -29,18 +29,18 @@ func readInConfig() error {
 }
 
 func main() {
-	ctx, cancel := context.WithTimeout(context.Background(), time.Second*20)
+	appCtx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
 	err := readInConfig()
 	if err != nil {
 		log.Fatal(err)
 	}
-	db, err := getConnection(ctx)
+	db, err := getConnection(appCtx)
 	if err != nil {
 		log.Fatal(err)
 	}
-	srv := service.New(postgres.NewGameRepo(db), postgres.NewPlayerRepo(db))
+	srv := service.New(appCtx, postgres.NewGameRepo(db), postgres.NewPlayerRepo(db))
 	tokener, err := token.New([]byte(config.PASETOKey), "", time.Hour)
 	if err != nil {
 		log.Fatal(err)

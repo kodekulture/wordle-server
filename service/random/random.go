@@ -1,6 +1,7 @@
 package random
 
 import (
+	"context"
 	"math/rand"
 	"time"
 
@@ -15,40 +16,41 @@ var (
 )
 
 type value struct {
+	createdAt time.Time
 	username  string
 	gameID    uuid.UUID
-	createdAt time.Time
 }
 
 type RandomGen struct {
 	r *rand.Rand
-	l int
 	s map[string]value
+	l int
 }
 
 // New returns a new RandomGen
-func New() RandomGen {
+func New(ctx context.Context) RandomGen {
 	r := RandomGen{
 		r: rand.New(rand.NewSource(time.Now().UnixNano())),
 		l: defaultLenght,
 		s: make(map[string]value),
 	}
-	go r.cleanup()
+	go r.cleanup(ctx)
 	return r
 }
 
 // Store stores the username and gameID associated with a the token and returns it
 func (rg RandomGen) Store(username string, gameID uuid.UUID) string {
-	var token string
+	token := make([]byte, rg.l)
 	for i := 0; i < rg.l; i++ {
-		token += string(characters[rg.r.Intn(len(characters))])
+		token[i] = characters[rg.r.Intn(len(characters))]
 	}
-	rg.s[token] = value{
+	tokenString := string(token)
+	rg.s[tokenString] = value{
 		username:  username,
 		gameID:    gameID,
 		createdAt: time.Now(),
 	}
-	return token
+	return tokenString
 }
 
 // Get returns the username and gameID associated with the token
@@ -62,13 +64,19 @@ func (r RandomGen) Get(token string) (string, uuid.UUID, bool) {
 
 // cleanup removes all the values that are older than valueMaxLife
 // since the game is not supposed to last more than one hour
-func (r RandomGen) cleanup() {
+func (r RandomGen) cleanup(ctx context.Context) {
 	ticker := time.NewTicker(cleanupCycle)
-	for range ticker.C {
-		now := time.Now()
-		for k, v := range r.s {
-			if now.Sub(v.createdAt) > valueMaxLife {
-				delete(r.s, k)
+	defer ticker.Stop()
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-ticker.C:
+			now := time.Now()
+			for k, v := range r.s {
+				if now.Sub(v.createdAt) > valueMaxLife {
+					delete(r.s, k)
+				}
 			}
 		}
 	}
