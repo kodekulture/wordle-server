@@ -271,10 +271,13 @@ func toGame(g game.Game, username string) gameResponse {
 			GuessResponse: toGuess(s.BestGuess(), false),
 		})
 	}
-	userSession := g.Sessions[username]
-	guesses := make([]guessResponse, len(userSession.Guesses))
-	for i, guess := range userSession.Guesses {
-		guesses[i] = toGuess(guess, true)
+	var guesses []guessResponse
+	userSession, ok := g.Sessions[username]
+	if ok {
+		guesses = make([]guessResponse, len(userSession.Guesses))
+		for i, guess := range userSession.Guesses {
+			guesses[i] = toGuess(guess, true)
+		}
 	}
 	return gameResponse{
 		CreatedAt:       g.CreatedAt,
