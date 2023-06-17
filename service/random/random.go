@@ -2,17 +2,17 @@ package random
 
 import (
 	"context"
-	"math/rand"
+	"crypto/sha256"
+	"encoding/hex"
 	"time"
 
 	"github.com/google/uuid"
 )
 
 var (
-	defaultLenght = 30
-	valueMaxLife  = time.Hour
-	cleanupCycle  = time.Minute
-	characters    = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
+	valueMaxLife = time.Hour
+	cleanupCycle = time.Minute
+	salt         = "NdZXxlv1ShnypBDGrJCRe8g7HPENVyXkSZyOsSYyQbGtqnduoxMPyfcnKXEVKdHz" // TODO: load from env
 )
 
 type value struct {
@@ -22,35 +22,32 @@ type value struct {
 }
 
 type RandomGen struct {
-	r *rand.Rand
 	s map[string]value
-	l int
 }
 
 // New returns a new RandomGen
 func New(ctx context.Context) RandomGen {
-	r := RandomGen{
-		r: rand.New(rand.NewSource(time.Now().UnixNano())),
-		l: defaultLenght,
-		s: make(map[string]value),
-	}
+	r := RandomGen{s: make(map[string]value)}
 	go r.cleanup(ctx)
 	return r
 }
 
 // Store stores the username and gameID associated with a the token and returns it
 func (rg RandomGen) Store(username string, gameID uuid.UUID) string {
-	token := make([]byte, rg.l)
-	for i := 0; i < rg.l; i++ {
-		token[i] = characters[rg.r.Intn(len(characters))]
+	hash256 := sha256.New()
+	data := username + salt + gameID.String()
+	hash256.Write([]byte(data))
+	token := hex.EncodeToString(hash256.Sum(nil))
+	// if the user already issued the token
+	if _, ok := rg.s[token]; ok {
+		return token
 	}
-	tokenString := string(token)
-	rg.s[tokenString] = value{
+	rg.s[token] = value{
 		username:  username,
 		gameID:    gameID,
 		createdAt: time.Now(),
 	}
-	return tokenString
+	return token
 }
 
 // Get returns the username and gameID associated with the token
