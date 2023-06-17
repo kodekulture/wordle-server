@@ -22,6 +22,7 @@ type Service struct {
 	r  random.RandomGen
 	gr repository.Game
 	pr repository.Player
+	cr repository.Cache
 }
 
 func (s *Service) ComparePasswords(hash, original string) error {
@@ -92,10 +93,11 @@ func (s *Service) FinishGame(ctx context.Context, g *game.Game) error {
 	return nil
 }
 
-func New(appCtx context.Context, gr repository.Game, pr repository.Player) *Service {
+func New(appCtx context.Context, gr repository.Game, pr repository.Player, cr repository.Cache) *Service {
 	return &Service{
 		r:  random.New(appCtx),
 		gr: gr,
 		pr: pr,
+		cr: cr,
 	}
 }

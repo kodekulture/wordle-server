@@ -10,12 +10,14 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/dgraph-io/badger"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/spf13/viper"
 
 	"github.com/Chat-Map/wordle-server/handler"
 	"github.com/Chat-Map/wordle-server/handler/token"
 	"github.com/Chat-Map/wordle-server/repository/postgres"
+	"github.com/Chat-Map/wordle-server/repository/temp"
 	"github.com/Chat-Map/wordle-server/service"
 )
 
@@ -40,7 +42,11 @@ func main() {
 	if err != nil {
 		log.Fatal(err)
 	}
-	srv := service.New(appCtx, postgres.NewGameRepo(db), postgres.NewPlayerRepo(db))
+	cache, err := getCacher()
+	if err != nil {
+		log.Fatal(err)
+	}
+	srv := service.New(appCtx, postgres.NewGameRepo(db), postgres.NewPlayerRepo(db), temp.NewHubRepo(cache))
 	tokener, err := token.New([]byte(config.PASETOKey), "", time.Hour)
 	if err != nil {
 		log.Fatal(err)
@@ -65,6 +71,16 @@ func getConnection(ctx context.Context) (*pgxpool.Pool, error) {
 	return conn, nil
 }
 
+func getCacher() (*badger.DB, error) {
+	// Open the Badger database located in the /tmp/badger directory.
+	// It will be created if it doesn't exist.
+	db, err := badger.Open(badger.DefaultOptions(config.CacheURL))
+	if err != nil {
+		return nil, err
+	}
+	return db, nil
+}
+
 func shutdown(s *handler.Handler) {
 	// Wait for interrupt signal to gracefully shutdown the server with
 	sig := make(chan os.Signal, 1)
@@ -81,5 +97,6 @@ func shutdown(s *handler.Handler) {
 var config struct {
 	Port        string `mapstructure:"PORT"`
 	PostgresURL string `mapstructure:"POSTGRES_URL"`
+	CacheURL    string `mapstructure:"CACHE_URL"`
 	PASETOKey   string `mapstructure:"PASETO_KEY"`
 }
