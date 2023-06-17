@@ -3,7 +3,6 @@ module github.com/Chat-Map/wordle-server
 go 1.20
 
 require (
-	github.com/brianvoe/gofakeit v3.18.0+incompatible
 	github.com/brianvoe/gofakeit/v6 v6.22.0
 	github.com/dgraph-io/badger v1.6.2
 	github.com/go-chi/chi/v5 v5.0.8
