@@ -4,10 +4,11 @@ import (
 	"log"
 	"net/http"
 
-	"github.com/Chat-Map/wordle-server/game"
-	"github.com/google/uuid"
 	"github.com/gorilla/websocket"
+	"github.com/lordvidex/errs"
 	"github.com/lordvidex/x/resp"
+
+	"github.com/Chat-Map/wordle-server/game"
 )
 
 var (
@@ -23,42 +24,32 @@ var (
 )
 
 func (h *Handler) live(w http.ResponseWriter, r *http.Request) {
-	// Parse username from request query
-	username := r.URL.Query().Get("username")
-	if username == "" {
-		w.WriteHeader(http.StatusBadRequest)
-		w.Write([]byte("invalid username"))
-	}
-
-	// Parse roomID from request query
-	roomID, err := uuid.Parse(r.URL.Query().Get("room_id"))
-	if err != nil {
-		w.WriteHeader(http.StatusBadRequest)
-		w.Write([]byte("invalid room id"))
+	// Parse token from request query
+	token := r.URL.Query().Get("token")
+	username, gameID, ok := h.srv.GetTokenPayload(token)
+	if !ok {
+		resp.Error(w, errs.B().Code(errs.InvalidArgument).Msg("invalid token").Err())
 		return
 	}
 
 	// Get room from Hub
-	Hub.mu.Lock()
-	defer Hub.mu.Unlock()
-	room, ok := Hub.rooms[roomID]
+	Hub.mu.RLock()
+	room, ok := Hub.rooms[gameID]
+	Hub.mu.RUnlock()
 	if !ok {
-		w.WriteHeader(http.StatusBadRequest)
-		w.Write([]byte("game not found"))
+		resp.Error(w, errs.B().Code(errs.InvalidArgument).Msg("game not found").Err())
 		return
 	}
 
 	// Check the game has not been closed
 	if room.closed {
-		w.WriteHeader(http.StatusBadRequest)
-		w.Write([]byte("game has been closed"))
+		resp.Error(w, errs.B().Code(errs.InvalidArgument).Msg("game has been closed").Err())
 		return
 	}
 
-	// Check if the game has started already
+	// Check if the game has started already and user has not joined
 	if room.active && room.g.Sessions[username] == nil {
-		w.WriteHeader(http.StatusBadRequest)
-		w.Write([]byte("you can't join ongoing game"))
+		resp.Error(w, errs.B().Code(errs.InvalidArgument).Msg("you can't join ongoing game").Err())
 		return
 	}
 

@@ -188,7 +188,7 @@ func toGame(g pgen.PlayerGamesRow) game.Game {
 		CorrectWord: word.New(g.CorrectWord),
 		CreatedAt:   g.CreatedAt.Time,
 		StartedAt:   toNilTime(g.StartedAt),
-		EndedAt:     toNilTime(g.CreatedAt),
+		EndedAt:     toNilTime(g.EndedAt),
 		// Sessions: -- sessions are not in the database
 	}
 

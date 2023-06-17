@@ -9,6 +9,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/gorilla/websocket"
+	"github.com/lordvidex/x/ptr"
 
 	"github.com/Chat-Map/wordle-server/game"
 	"github.com/Chat-Map/wordle-server/game/word"
@@ -17,7 +18,7 @@ import (
 
 var Hub struct {
 	rooms map[uuid.UUID]*Room
-	mu    sync.Mutex // protects the room map
+	mu    sync.RWMutex // protects the room map
 	s     *service.Service
 }
 
@@ -170,9 +171,9 @@ func (r *Room) play(m Payload) {
 	}
 	// Process the given word and send error if the word is invalid
 	w := word.New(text)
-	ok = r.g.Play(m.sender.PName(), &w)
-	if !ok {
-		m.sender.write(newPayload(CError, "Invalid word", ""))
+	dRank, err := r.g.Play(m.sender.PName(), &w)
+	if err != nil {
+		m.sender.write(newPayload(CError, err.Error(), ""))
 		return
 	}
 
@@ -180,13 +181,21 @@ func (r *Room) play(m Payload) {
 	m.sender.write(newPayload(CResult, w.Stats, ""))
 
 	// Send the result to all players in the room
-	text = fmt.Sprintf("%s got %d/%d correct", m.From, w.CorrectCount(), len(w.Word))
-	r.sendAll(newPayload(CPlay, text, m.From))
+	result := playerGuessResponse{
+		Username:      m.sender.PName(),
+		GuessResponse: toGuess(w, false),
+		RankOffset:    ptr.Obj(dRank),
+	}
+	r.sendAll(newPayload(CPlay, result, m.From))
 
 	// Check if the game has finished, if so, close the room
 	if r.g.HasEnded() {
 		r.sendAll(newPayload(CFinish, "Game has ended", ""))
 		r.close()
+		err := Hub.s.FinishGame(context.Background(), r.g)
+		if err != nil {
+			log.Printf("failed to finish game: %v", err)
+		}
 	}
 }
 
@@ -254,14 +263,18 @@ func (r *Room) close() {
 	// all prevent any new players from sending messages to the room.
 	r.cancelCtx()
 	r.mu.Lock()
-	defer r.mu.Unlock()
 	// Close all players connection
 	for _, p := range r.players {
 		p.Close()
 		delete(r.players, p.PName())
 	}
+	r.mu.Unlock()
 	close(r.broadcast)
 	close(r.leaveChan)
+	// Remove the room from the hub to free memory
+	Hub.mu.Lock()
+	delete(Hub.rooms, r.g.ID)
+	Hub.mu.Unlock()
 }
 
 // run processes all messages sent to the room.

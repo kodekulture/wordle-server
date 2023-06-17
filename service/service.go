@@ -9,6 +9,7 @@ import (
 	"github.com/Chat-Map/wordle-server/game"
 	"github.com/Chat-Map/wordle-server/repository"
 	"github.com/Chat-Map/wordle-server/service/hasher"
+	"github.com/Chat-Map/wordle-server/service/random"
 )
 
 var (
@@ -18,12 +19,21 @@ var (
 // TODO: maybe create an interface and put this struct one package down
 type Service struct {
 	h  hasher.Bcrypt
+	r  random.RandomGen
 	gr repository.Game
 	pr repository.Player
 }
 
 func (s *Service) ComparePasswords(hash, original string) error {
 	return s.h.Compare(hash, original)
+}
+
+func (s *Service) CreateToken(username string, gameID uuid.UUID) string {
+	return s.r.Store(username, gameID)
+}
+
+func (s *Service) GetTokenPayload(token string) (string, uuid.UUID, bool) {
+	return s.r.Get(token)
 }
 
 func (s *Service) CreatePlayer(ctx context.Context, player *game.Player) error {
@@ -74,8 +84,17 @@ func (s *Service) StartGame(ctx context.Context, g *game.Game) error {
 	return nil
 }
 
-func New(gr repository.Game, pr repository.Player) *Service {
+func (s *Service) FinishGame(ctx context.Context, g *game.Game) error {
+	err := s.gr.FinishGame(ctx, g)
+	if err != nil {
+		return errs.WrapCode(err, errs.Internal, "error saving game for all players")
+	}
+	return nil
+}
+
+func New(appCtx context.Context, gr repository.Game, pr repository.Player) *Service {
 	return &Service{
+		r:  random.New(appCtx),
 		gr: gr,
 		pr: pr,
 	}

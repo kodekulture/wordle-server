@@ -26,7 +26,7 @@ func TestLetterStateEnums(t *testing.T) {
 	}
 }
 
-func TestWord_CompareTo(t *testing.T) {
+func TestWord_Check(t *testing.T) {
 	testCases := []struct {
 		word        string
 		correctWord string
@@ -50,7 +50,7 @@ func TestWord_CompareTo(t *testing.T) {
 			word := New(tt.word)
 			correctWord := New(tt.correctWord)
 			//when
-			result := word.CompareTo(correctWord)
+			result := word.Check(correctWord)
 			// then
 			if !reflect.DeepEqual(result, tt.expected) {
 				t.Errorf("Expected %v, got %v", tt.expected, result)
