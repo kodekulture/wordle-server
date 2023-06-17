@@ -134,10 +134,12 @@ func (r *Room) start(m Payload) {
 	}
 	r.g.Start()
 	// Save the game to the database
-	err := r.saver.StartGame(r.ctx, r.g)
-	if err != nil {
-		m.sender.write(newPayload(CError, "Failed to start game", ""))
-		return
+	if r.saver != nil {
+		err := r.saver.StartGame(r.ctx, r.g)
+		if err != nil {
+			m.sender.write(newPayload(CError, "Failed to start game", ""))
+			return
+		}
 	}
 	r.active = true
 	r.sendAll(newPayload(CStart, "Game started!", ""))
@@ -298,9 +300,11 @@ func (r *Room) close() {
 	}
 	close(r.broadcast)
 	// Store the game in the database
-	err := r.saver.FinishGame(context.Background(), r.g)
-	if err != nil {
-		log.Printf("failed to store game: %v", err)
+	if r.saver != nil {
+		err := r.saver.FinishGame(context.Background(), r.g)
+		if err != nil {
+			log.Printf("failed to store game: %v", err)
+		}
 	}
 }
 

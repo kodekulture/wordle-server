@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"github.com/google/uuid"
+	"github.com/stretchr/testify/require"
 )
 
 func TestRandomGenStore(t *testing.T) {
@@ -25,23 +26,13 @@ func TestRandomGenStore(t *testing.T) {
 			rg := New(context.TODO())
 			token := rg.Store(tt.username, tt.gameID)
 			username, gameID, ok := rg.Get(token)
-			if !ok {
-				t.Errorf("token not found")
-			}
-			if username != tt.username {
-				t.Errorf("username not equal")
-			}
-			if gameID != tt.gameID {
-				t.Errorf("gameID not equal")
-			}
+			require.Truef(t, ok, "token not found")
+			require.Equal(t, tt.username, username, "username not equal")
+			require.Equal(t, tt.gameID, gameID, "gameID not equal")
 			t.Log("storing twice should not create two token entries")
 			token2 := rg.Store(tt.username, tt.gameID)
-			if token != token2 {
-				t.Errorf("token should be equal")
-			}
-			if len(rg.s) != 1 {
-				t.Errorf("token was stored twice instead of once")
-			}
+			require.Equal(t, token, token2, "token should be equal")
+			require.Falsef(t, len(rg.s) != 1, "token was stored twice instead of once")
 		})
 	}
 }
