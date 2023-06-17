@@ -77,5 +77,6 @@ func (h *Handler) live(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	go room.join(player, conn)
+	playerConn := newPlayerConn(conn, room, player.Username)
+	room.tryBroadcast(newPayload(PJoin, playerConn, ""))
 }

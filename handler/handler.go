@@ -153,7 +153,7 @@ func (h *Handler) createRoom(w http.ResponseWriter, r *http.Request) {
 	}
 	// 2. create a room with the user as the creator and store this room in temporary area (Hub)
 	wrd := h.wordGen.Generate(word.Length)
-	log.Println(wrd)
+	log.Println(wrd) // TODO: remove this on production, for now leave it for debugging
 	g := game.New(player.Username, word.New(wrd))
 	room := NewRoom(g)
 
