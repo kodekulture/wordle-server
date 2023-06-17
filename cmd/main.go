@@ -31,6 +31,7 @@ func readInConfig() error {
 }
 
 func main() {
+	done := make(chan struct{})
 	appCtx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
@@ -55,11 +56,12 @@ func main() {
 		log.Fatal(err)
 	}
 	h := handler.New(srv, tokener)
-	go shutdown(h)
+	go shutdown(h, done)
 	log.Printf("server started on port: %s", config.Port)
 	if err = h.Start(config.Port); err != nil && !errors.Is(err, http.ErrServerClosed) {
 		log.Fatal(err)
 	}
+	<-done
 }
 
 func getConnection(ctx context.Context) (*pgxpool.Pool, error) {
@@ -84,17 +86,20 @@ func getCacher() (*badger.DB, error) {
 	return db, nil
 }
 
-func shutdown(s *handler.Handler) {
+func shutdown(s *handler.Handler, done chan<- struct{}) {
 	// Wait for interrupt signal to gracefully shutdown the server with
 	sig := make(chan os.Signal, 1)
-	signal.Notify(sig, os.Interrupt, syscall.SIGTERM)
+	signal.Notify(sig, os.Interrupt, syscall.SIGTERM, syscall.SIGINT)
 	<-sig
+	log.Println("shutdown started")
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second*5)
 	defer cancel()
 	err := s.Stop(ctx)
 	if err != nil {
 		log.Fatal(err)
 	}
+	log.Println("shutdown complete")
+	close(done)
 }
 
 var config struct {
