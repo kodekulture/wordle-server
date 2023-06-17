@@ -34,6 +34,14 @@ func TestRandomGenStore(t *testing.T) {
 			if gameID != tt.gameID {
 				t.Errorf("gameID not equal")
 			}
+			t.Log("storing twice should not create two token entries")
+			token2 := rg.Store(tt.username, tt.gameID)
+			if token != token2 {
+				t.Errorf("token should be equal")
+			}
+			if len(rg.s) != 1 {
+				t.Errorf("token was stored twice instead of once")
+			}
 		})
 	}
 }

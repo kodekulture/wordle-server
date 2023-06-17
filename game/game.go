@@ -11,6 +11,11 @@ import (
 	"github.com/Chat-Map/wordle-server/game/word"
 )
 
+var (
+	ErrPlayerNotFound = errors.New("player not found")
+	ErrSessionEnded   = errors.New("user session has ended")
+)
+
 const (
 	// MaxDuration is the maximum duration a game can last
 	MaxDuration = time.Hour
@@ -30,8 +35,8 @@ const (
 )
 
 type RankBoard struct {
-	ranks     []*Session     // the first element is the highest rank
-	positions map[string]int // the current position on the `username` in tha `ranks` array
+	positions map[string]int
+	ranks     []*Session
 }
 
 func NewRankBoard(initial map[string]*Session) RankBoard {
@@ -116,11 +121,11 @@ func New(creator string, correctWord word.Word) *Game {
 func (g *Game) Play(player string, guess *word.Word) (int, error) {
 	session := g.Sessions[player]
 	if session == nil {
-		return 0, errors.New("player not found")
+		return 0, ErrPlayerNotFound
 	}
 
 	if session.Ended() { // game has ended, no need to add more guesses
-		return 0, errors.New("user session has ended")
+		return 0, ErrSessionEnded
 	}
 	// process the guess
 	guess.PlayedAt.Scan(time.Now().UTC())
@@ -149,9 +154,9 @@ func (g *Game) Players() []string {
 
 // Session holds the state of a player's game session.
 type Session struct {
-	Guesses   []word.Word
-	Player    Player
 	bestGuess *word.Word
+	Player    Player
+	Guesses   []word.Word
 }
 
 // play updates the current bestGuess made by the user
