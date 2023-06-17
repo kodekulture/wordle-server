@@ -42,11 +42,11 @@ func (s *Service) FinishGame(ctx context.Context, g *game.Game) error {
 	return s.gameService.FinishGame(ctx, g)
 }
 
-func (s *Service) CreateInvite(username string, gameID uuid.UUID) string {
-	return s.r.Store(username, gameID)
+func (s *Service) CreateInvite(player game.Player, gameID uuid.UUID) string {
+	return s.r.Store(player, gameID)
 }
 
-func (s *Service) GetInviteData(token string) (string, uuid.UUID, bool) {
+func (s *Service) GetInviteData(token string) (game.Player, uuid.UUID, bool) {
 	return s.r.Get(token)
 }
 
@@ -80,7 +80,10 @@ func (s *Service) drop(ctx context.Context) error {
 func (s *Service) Stop(ctx context.Context) {
 	s.hub.mu.Lock()
 	defer s.hub.mu.Unlock()
-	s.dumpHub(ctx, s.hub.rooms)
+	err := s.dumpHub(ctx, s.hub.rooms)
+	if err != nil {
+		log.Printf("failed to dump hub: %s", err)
+	}
 }
 
 func New(appCtx context.Context, gr repository.Game, pr repository.Player, cr repository.HubBackup) (*Service, error) {

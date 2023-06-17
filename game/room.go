@@ -2,6 +2,7 @@ package game
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log"
 	"strings"
@@ -89,15 +90,21 @@ func (r *Room) Game() *Game {
 }
 
 // Join adds a player to the room
-func (r *Room) Join(username string, conn *websocket.Conn) {
-	pc := newPlayerConn(conn, r, username)
-	r.tryBroadcast(newPayload(CJoin, pc, ""))
+func (r *Room) Join(p Player, conn *websocket.Conn) {
+	pc := newPlayerConn(conn, r, p)
+	r.tryBroadcast(newPayload(PJoin, pc, ""))
 }
 
 // CanJoin checks if a player can join the room
-func (r *Room) CanJoin(username string) bool {
+func (r *Room) CanJoin(username string) error {
+	if r.IsClosed() {
+		return errors.New("the room is closed")
+	}
 	_, ok := r.players[username]
-	return r.active || ok
+	if r.active && !ok {
+		return errors.New("the game has already started")
+	}
+	return nil
 }
 
 // IsClosed checks if the room is closed
@@ -108,7 +115,7 @@ func (r *Room) IsClosed() bool {
 // NewRoom creates a new room and add it to the Hub.
 func NewRoom(game *Game, storer GameSaver) *Room {
 	ctx, cancel := context.WithCancel(context.Background())
-	room := Room{
+	room := &Room{
 		ctx:       ctx,
 		cancelCtx: cancel,
 		players:   make(map[string]*PlayerConn),
@@ -117,7 +124,7 @@ func NewRoom(game *Game, storer GameSaver) *Room {
 		saver:     storer,
 	}
 	go room.run()
-	return &room
+	return room
 }
 
 // start Process `SStart` event and broadcasts a `CStart` event to all players in the room.
@@ -163,7 +170,7 @@ func (r *Room) play(m Payload) {
 		m.sender.write(newPayload(CError, "Room isn't active", ""))
 		return
 	}
-	session := r.g.Sessions[m.sender.Username]
+	session := r.g.Sessions[m.sender.PName()]
 	// If the user is not in the game, return an error
 	if session == nil {
 		m.sender.write(newPayload(CError, "Invalid user session", ""))
@@ -217,29 +224,29 @@ func (r *Room) play(m Payload) {
 }
 
 func (r *Room) join(m Payload) {
-	new := m.Data.(*PlayerConn)
-	old := r.players[new.PName()]
+	pconn := m.Data.(*PlayerConn)
+	old := r.players[pconn.PName()]
 	// If the player is already in the room, kick him out.
 	if old != nil {
 		r.leave(newPayload(PKickout, old, ""))
 	}
 	// Create a new session for the user if it doesn't exist.
-	if _, ok := r.g.Sessions[new.PName()]; !ok {
-		r.g.Join(Player{Username: new.PName()})
+	if _, ok := r.g.Sessions[pconn.PName()]; !ok {
+		r.g.Join(pconn.player)
 	}
 	// Send the player his current state in the game.
 	// On error, close the player connection since he will have inconsistent data with which he can't play the game.
-	err := new.write(newPayload(CData, r.g.Sessions[new.PName()].Guesses, ""))
+	err := pconn.write(newPayload(CData, r.g.Sessions[pconn.PName()].Guesses, ""))
 	if err != nil {
 		log.Printf("failed to send player data: %v", err)
-		err = new.close()
+		err = pconn.close()
 		if err != nil {
 			log.Printf("failed to close player connection: %v", err)
 		}
 		return
 	}
-	r.players[new.PName()] = new
-	r.sendAll(newPayload(CJoin, fmt.Sprintf("%s has joined", new.PName()), ""))
+	r.players[pconn.PName()] = pconn
+	r.sendAll(newPayload(CJoin, fmt.Sprintf("%s has joined", pconn.PName()), ""))
 }
 
 // leave process `SLeave` and `SKickout` events and broadcasts a `CLeave` event to all players in the room.
@@ -362,40 +369,40 @@ var (
 // PlayerConn represents a player in the game.
 // A player can be in multiple rooms, but only one game at a time.
 type PlayerConn struct {
-	conn     *websocket.Conn
-	room     *Room
-	Username string
-	writeMu  sync.Mutex
-	active   bool // indicator for player's connection status
+	conn    *websocket.Conn
+	room    *Room
+	player  Player
+	writeMu sync.Mutex
+	active  bool // indicator for player's connection status
 
 	t *time.Ticker
 }
 
 // PName returns the player name.
 func (p *PlayerConn) PName() string {
-	return p.Username
+	return p.player.Username
 }
 
 // newPlayerConn creates a new player.
 // This function starts the read goroutine to forward messages to the room.
 // Also starts the ping goroutine to ping the player every 5 seconds
 // to check if the player is still connected otherwise the connection is closed.
-func newPlayerConn(conn *websocket.Conn, room *Room, username string) *PlayerConn {
+func newPlayerConn(conn *websocket.Conn, room *Room, player Player) *PlayerConn {
 	// Create a ticker to ping the player every 5 seconds
 	// The ticker is stored in the player struct so that it can be stopped
 	// on the player.Close() call.
 	ticker := time.NewTicker(pingInterval)
-	player := PlayerConn{
-		Username: username,
-		conn:     conn,
-		room:     room,
-		active:   true,
+	p := PlayerConn{
+		player: player,
+		conn:   conn,
+		room:   room,
+		active: true,
 
 		t: ticker,
 	}
-	go player.read()
-	go player.ping()
-	return &player
+	go p.read()
+	go p.ping()
+	return &p
 }
 
 // Close closes the player connection.
@@ -435,7 +442,7 @@ func (p *PlayerConn) read() {
 			p.write(newPayload(CError, "unsupported action", ""))
 			continue
 		}
-		payload.From = p.Username // From set by the client is ignored by the server for security reasons.
+		payload.From = p.PName() // From set by the client is ignored by the server for security reasons.
 		payload.sender = p
 		p.room.tryBroadcast(payload)
 	}

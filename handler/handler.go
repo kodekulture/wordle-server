@@ -191,7 +191,7 @@ func (h *Handler) joinRoom(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	// return a token for the user to join the room with ws
-	token := h.srv.CreateInvite(player.Username, uid)
+	token := h.srv.CreateInvite(ptr.ToObj(player), uid)
 	result := joinRoomResponse{Token: token}
 	resp.JSON(w, result)
 }
@@ -244,7 +244,7 @@ func (h *Handler) Stop(ctx context.Context) error {
 func (h *Handler) live(w http.ResponseWriter, r *http.Request) {
 	// Parse token from request query
 	token := r.URL.Query().Get("token")
-	username, gameID, ok := h.srv.GetInviteData(token)
+	p, gameID, ok := h.srv.GetInviteData(token)
 	if !ok {
 		resp.Error(w, errs.B().Code(errs.InvalidArgument).Msg("invalid token").Err())
 		return
@@ -256,15 +256,9 @@ func (h *Handler) live(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Check the game has not been closed
-	if room.IsClosed() {
-		resp.Error(w, errs.B().Code(errs.InvalidArgument).Msg("game has been closed").Err())
-		return
-	}
-
 	// Check if the game has started already and user has not joined
-	if !room.CanJoin(username) {
-		resp.Error(w, errs.B().Code(errs.InvalidArgument).Msg("you can't join room").Err())
+	if err := room.CanJoin(p.Username); err != nil {
+		resp.Error(w, errs.B(err).Code(errs.InvalidArgument).Err())
 		return
 	}
 
@@ -275,5 +269,5 @@ func (h *Handler) live(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	room.Join(username, conn)
+	room.Join(p, conn)
 }
