@@ -1,4 +1,4 @@
-package handler
+package game
 
 import (
 	"context"
@@ -8,24 +8,11 @@ import (
 	"sync"
 	"time"
 
-	"github.com/google/uuid"
 	"github.com/gorilla/websocket"
 	"github.com/lordvidex/x/ptr"
 
-	"github.com/Chat-Map/wordle-server/game"
 	"github.com/Chat-Map/wordle-server/game/word"
-	"github.com/Chat-Map/wordle-server/service"
 )
-
-var Hub struct {
-	rooms map[uuid.UUID]*Room
-	mu    sync.RWMutex // protects the room map
-	s     *service.Service
-}
-
-func init() {
-	Hub.rooms = make(map[uuid.UUID]*Room)
-}
 
 type Event string
 
@@ -68,6 +55,11 @@ func newPayload(event Event, data interface{}, from string) Payload {
 	}
 }
 
+type GameSaver interface {
+	FinishGame(context.Context, *Game) error
+	StartGame(context.Context, *Game) error
+}
+
 type Room struct {
 	// This context is used to protect writes in room's closed channels
 	// When sending to any of the room's channels(leaveChan, broadcast) this context
@@ -78,14 +70,43 @@ type Room struct {
 
 	players   map[string]*PlayerConn
 	broadcast chan Payload
-	g         *game.Game
+	g         *Game
 
 	active bool // whether the game has started
 	closed bool // whether the game has finished
+
+	saver GameSaver
+}
+
+// ID returns the ID of the room which is the ID of the game
+func (r *Room) ID() string {
+	return r.g.ID.String()
+}
+
+// Game returns the game of the room
+func (r *Room) Game() *Game {
+	return r.g
+}
+
+// Join adds a player to the room
+func (r *Room) Join(username string, conn *websocket.Conn) {
+	pc := newPlayerConn(conn, r, username)
+	r.tryBroadcast(newPayload(CJoin, pc, ""))
+}
+
+// CanJoin checks if a player can join the room
+func (r *Room) CanJoin(username string) bool {
+	_, ok := r.players[username]
+	return r.active || ok
+}
+
+// IsClosed checks if the room is closed
+func (r *Room) IsClosed() bool {
+	return r.closed
 }
 
 // NewRoom creates a new room and add it to the Hub.
-func NewRoom(game *game.Game) *Room {
+func NewRoom(game *Game, storer GameSaver) *Room {
 	ctx, cancel := context.WithCancel(context.Background())
 	room := Room{
 		ctx:       ctx,
@@ -93,11 +114,8 @@ func NewRoom(game *game.Game) *Room {
 		players:   make(map[string]*PlayerConn),
 		broadcast: make(chan Payload),
 		g:         game,
+		saver:     storer,
 	}
-
-	Hub.mu.Lock()
-	Hub.rooms[room.g.ID] = &room
-	Hub.mu.Unlock()
 	go room.run()
 	return &room
 }
@@ -116,12 +134,11 @@ func (r *Room) start(m Payload) {
 	}
 	r.g.Start()
 	// Save the game to the database
-	// TODO: Uncomment this when the database is ready
-	_ = Hub.s.StartGame(r.ctx, r.g)
-	// if err != nil {
-	// 	m.sender.write(newPayload(CError, "Failed to start game", ""))
-	// 	return
-	// }
+	err := r.saver.StartGame(r.ctx, r.g)
+	if err != nil {
+		m.sender.write(newPayload(CError, "Failed to start game", ""))
+		return
+	}
 	r.active = true
 	r.sendAll(newPayload(CStart, "Game started!", ""))
 }
@@ -183,9 +200,9 @@ func (r *Room) play(m Payload) {
 	m.sender.write(newPayload(CResult, w.Stats, ""))
 
 	// Send the result to all players in the room
-	result := playerGuessResponse{
+	result := PlayerGuessResponse{
 		Username:      m.sender.PName(),
-		GuessResponse: toGuess(w, false),
+		GuessResponse: ToGuess(w, false),
 		RankOffset:    ptr.Obj(dRank),
 	}
 	r.sendAll(newPayload(CPlay, result, m.From))
@@ -206,14 +223,14 @@ func (r *Room) join(m Payload) {
 	}
 	// Create a new session for the user if it doesn't exist.
 	if _, ok := r.g.Sessions[new.PName()]; !ok {
-		r.g.Join(game.Player{Username: new.PName()})
+		r.g.Join(Player{Username: new.PName()})
 	}
 	// Send the player his current state in the game.
 	// On error, close the player connection since he will have inconsistent data with which he can't play the game.
 	err := new.write(newPayload(CData, r.g.Sessions[new.PName()].Guesses, ""))
 	if err != nil {
 		log.Printf("failed to send player data: %v", err)
-		err = new.Close()
+		err = new.close()
 		if err != nil {
 			log.Printf("failed to close player connection: %v", err)
 		}
@@ -245,7 +262,7 @@ func (r *Room) leave(m Payload) {
 			players[i] = nil
 			continue
 		}
-		p.Close()
+		p.close()
 		delete(r.players, p.PName())
 	}
 	for _, p := range players {
@@ -276,18 +293,14 @@ func (r *Room) close() {
 	r.cancelCtx()
 	// Close all players connection
 	for _, p := range r.players {
-		p.Close()
+		p.close()
 		delete(r.players, p.PName())
 	}
 	close(r.broadcast)
-	// Remove the room from the hub to free memory
-	Hub.mu.Lock()
-	delete(Hub.rooms, r.g.ID)
-	Hub.mu.Unlock()
-	// Save the game in database
-	err := Hub.s.FinishGame(context.Background(), r.g)
+	// Store the game in the database
+	err := r.saver.FinishGame(context.Background(), r.g)
 	if err != nil {
-		log.Printf("failed to finish game: %v", err)
+		log.Printf("failed to store game: %v", err)
 	}
 }
 
@@ -367,7 +380,7 @@ func newPlayerConn(conn *websocket.Conn, room *Room, username string) *PlayerCon
 	// Create a ticker to ping the player every 5 seconds
 	// The ticker is stored in the player struct so that it can be stopped
 	// on the player.Close() call.
-	ticker := time.NewTicker(time.Second * 5)
+	ticker := time.NewTicker(pingInterval)
 	player := PlayerConn{
 		Username: username,
 		conn:     conn,
@@ -382,7 +395,7 @@ func newPlayerConn(conn *websocket.Conn, room *Room, username string) *PlayerCon
 }
 
 // Close closes the player connection.
-func (p *PlayerConn) Close() error {
+func (p *PlayerConn) close() error {
 	p.active = false
 	p.t.Stop()
 	return p.conn.Close()

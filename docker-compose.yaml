@@ -5,6 +5,7 @@ services:
     container_name: "wordle-app"
     volumes:
       - .:/wordle
+      - ./badger_db:/badger_db
     build: 
       context: .
       dockerfile: Dockerfile
@@ -14,6 +15,7 @@ services:
     environment:
       - POSTGRES_URL=${POSTGRES_URL}
       - PASETO_KEY=${PASETO_KEY}
+      - BADGER_PATH=${BADGER_PATH}
       - PORT=${PORT}
     healthcheck:
       test: ["CMD", "curl", "http://localhost:${PORT}/health"]

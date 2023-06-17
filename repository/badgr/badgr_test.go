@@ -1,10 +1,11 @@
-package temp
+package badgr
 
 import (
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 	"testing"
 	"time"
+
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	"github.com/Chat-Map/wordle-server/game"
 	"github.com/Chat-Map/wordle-server/game/word"
@@ -15,9 +16,9 @@ import (
 
 func TestHubRepo(t *testing.T) {
 	// create a new HubRepo
-	cr := NewHubRepo(testDB)
+	cr := New(testDB)
 	type args struct {
-		hub map[uuid.UUID]*game.Game
+		hub map[uuid.UUID]*game.Room
 	}
 	tests := []struct {
 		name string
@@ -46,10 +47,12 @@ func TestHubRepo(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			err := cr.Dump(tt.args.hub)
 			require.Equal(t, nil, err)
-			got, dropFn, err := cr.Load()
+			got, err := cr.Load(func(g *game.Game) *game.Room {
+				return game.NewRoom(g, nil)
+			})
 			require.Equal(t, nil, err)
 			defer func() {
-				require.Equal(t, nil, dropFn())
+				require.Equal(t, nil, cr.Drop())
 			}()
 			assert.Equal(t, nil, err)
 			assert.Equal(t, len(tt.args.hub), len(got))
@@ -58,7 +61,7 @@ func TestHubRepo(t *testing.T) {
 				require.NotNil(t, g2)
 				require.NotNil(t, g1)
 				delete(tt.args.hub, k)
-				compareGames(t, g1, g2)
+				compareGames(t, g1.Game(), g2.Game())
 			}
 
 		})
@@ -108,8 +111,8 @@ func compareTime(t *testing.T, t1 time.Time, t2 time.Time) {
 	assert.InDelta(t, t1.Second(), t2.Second(), time.Second.Seconds())
 }
 
-func generateRandomHub() map[uuid.UUID]*game.Game {
-	hub := make(map[uuid.UUID]*game.Game)
+func generateRandomHub() map[uuid.UUID]*game.Room {
+	hub := make(map[uuid.UUID]*game.Room)
 	for i := 0; i < 100; i++ {
 		name := gofakeit.Name()
 		g := game.New(name, word.New(gofakeit.Country()))
@@ -119,7 +122,7 @@ func generateRandomHub() map[uuid.UUID]*game.Game {
 		for i := 0; i < 3; i++ {
 			g.Play(name, ptr.Obj(word.New(gofakeit.Country())))
 		}
-		hub[uuid.New()] = g
+		hub[uuid.New()] = game.NewRoom(g, nil)
 	}
 	return hub
 }

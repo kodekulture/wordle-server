@@ -1,7 +1,9 @@
-package temp
+// Package badgr is an adapter for the badgerDB
+package badgr
 
 import (
 	"encoding/json"
+
 	"github.com/Chat-Map/wordle-server/game"
 	"github.com/dgraph-io/badger"
 	"github.com/google/uuid"
@@ -12,10 +14,10 @@ type HubRepo struct {
 }
 
 // Dump implements repository.CacheDB.
-func (r *HubRepo) Dump(hub map[uuid.UUID]*game.Game) error {
-	for id, g := range hub {
+func (r *HubRepo) Dump(hub map[uuid.UUID]*game.Room) error {
+	for id, room := range hub {
 		err := r.db.Update(func(txn *badger.Txn) error {
-			b, err := json.Marshal(g)
+			b, err := json.Marshal(room.Game())
 			if err != nil {
 				return err
 			}
@@ -31,8 +33,8 @@ func (r *HubRepo) Dump(hub map[uuid.UUID]*game.Game) error {
 }
 
 // Load implements repository.CacheDB.
-func (r *HubRepo) Load() (map[uuid.UUID]*game.Game, func() error, error) {
-	hub := make(map[uuid.UUID]*game.Game)
+func (r *HubRepo) Load(conv func(g *game.Game) *game.Room) (map[uuid.UUID]*game.Room, error) {
+	hub := make(map[uuid.UUID]*game.Room)
 	err := r.db.View(func(txn *badger.Txn) error {
 		// set badger options
 		opts := badger.DefaultIteratorOptions
@@ -57,20 +59,20 @@ func (r *HubRepo) Load() (map[uuid.UUID]*game.Game, func() error, error) {
 				return err
 			}
 			// set value
-			hub[uid] = &g
+			hub[uid] = conv(&g)
 		}
 		return nil
 	})
 	if err != nil {
-		return nil, nil, err
+		return nil, err
 	}
-	return hub, r.wipe, err
+	return hub, err
 }
 
-func (r *HubRepo) wipe() error {
+func (r *HubRepo) Drop() error {
 	return r.db.DropAll()
 }
 
-func NewHubRepo(db *badger.DB) *HubRepo {
+func New(db *badger.DB) *HubRepo {
 	return &HubRepo{db: db}
 }

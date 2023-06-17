@@ -16,8 +16,8 @@ import (
 
 	"github.com/Chat-Map/wordle-server/handler"
 	"github.com/Chat-Map/wordle-server/handler/token"
+	"github.com/Chat-Map/wordle-server/repository/badgr"
 	"github.com/Chat-Map/wordle-server/repository/postgres"
-	"github.com/Chat-Map/wordle-server/repository/temp"
 	"github.com/Chat-Map/wordle-server/service"
 )
 
@@ -46,7 +46,10 @@ func main() {
 	if err != nil {
 		log.Fatal(err)
 	}
-	srv := service.New(appCtx, postgres.NewGameRepo(db), postgres.NewPlayerRepo(db), temp.NewHubRepo(cache))
+	srv, err := service.New(appCtx, postgres.NewGameRepo(db), postgres.NewPlayerRepo(db), badgr.New(cache))
+	if err != nil {
+		log.Fatal(err)
+	}
 	tokener, err := token.New([]byte(config.PASETOKey), "", time.Hour)
 	if err != nil {
 		log.Fatal(err)
@@ -74,7 +77,7 @@ func getConnection(ctx context.Context) (*pgxpool.Pool, error) {
 func getCacher() (*badger.DB, error) {
 	// Open the Badger database located in the /tmp/badger directory.
 	// It will be created if it doesn't exist.
-	db, err := badger.Open(badger.DefaultOptions(config.CacheURL))
+	db, err := badger.Open(badger.DefaultOptions(config.BADGER_PATH))
 	if err != nil {
 		return nil, err
 	}
@@ -97,6 +100,6 @@ func shutdown(s *handler.Handler) {
 var config struct {
 	Port        string `mapstructure:"PORT"`
 	PostgresURL string `mapstructure:"POSTGRES_URL"`
-	CacheURL    string `mapstructure:"CACHE_URL"`
+	BADGER_PATH string `mapstructure:"BADGER_PATH"`
 	PASETOKey   string `mapstructure:"PASETO_KEY"`
 }

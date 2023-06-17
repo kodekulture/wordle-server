@@ -1,4 +1,4 @@
-package temp
+package badgr
 
 import (
 	"log"

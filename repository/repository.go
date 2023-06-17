@@ -4,9 +4,8 @@ package repository
 import (
 	"context"
 
-	"github.com/google/uuid"
-
 	"github.com/Chat-Map/wordle-server/game"
+	"github.com/google/uuid"
 )
 
 type Player interface {
@@ -34,9 +33,11 @@ type Game interface {
 	FetchGame(context.Context, uuid.UUID) (*game.Game, error)
 }
 
-type Cache interface {
+type HubBackup interface {
 	// Load loads latest hub state
-	Load() (hub map[uuid.UUID]*game.Game, dropAll func() error, err error)
+	Load(converter func(g *game.Game) *game.Room) (hub map[uuid.UUID]*game.Room, err error)
 	// Dump dump the hub data into a file
-	Dump(hub map[uuid.UUID]*game.Game) error
+	Dump(hub map[uuid.UUID]*game.Room) error
+	// Delete deletes the hub data file
+	Drop() error
 }
