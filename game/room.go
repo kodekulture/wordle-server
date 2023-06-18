@@ -100,7 +100,7 @@ func (r *Room) CanJoin(username string) error {
 	if r.IsClosed() {
 		return errors.New("the room is closed")
 	}
-	_, ok := r.players[username]
+	_, ok := r.g.Sessions[username]
 	if r.active && !ok {
 		return errors.New("the game has already started")
 	}
@@ -122,6 +122,9 @@ func NewRoom(game *Game, storer GameSaver) *Room {
 		broadcast: make(chan Payload),
 		g:         game,
 		saver:     storer,
+
+		active: game.StartedAt != nil && game.EndedAt == nil,
+		closed: game.EndedAt != nil,
 	}
 	go room.run()
 	return room
