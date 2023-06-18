@@ -2,3 +2,5 @@
 .vscode
 .idea
 *.cov
+badger_db
+bin

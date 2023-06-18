@@ -2,64 +2,62 @@ package random
 
 import (
 	"context"
-	"math/rand"
+	"crypto/sha256"
+	"encoding/hex"
 	"time"
 
+	"github.com/Chat-Map/wordle-server/game"
 	"github.com/google/uuid"
 )
 
 var (
-	defaultLenght = 30
-	valueMaxLife  = time.Hour
-	cleanupCycle  = time.Minute
-	characters    = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
+	valueMaxLife = time.Hour
+	cleanupCycle = time.Minute
+	salt         = "NdZXxlv1ShnypBDGrJCRe8g7HPENVyXkSZyOsSYyQbGtqnduoxMPyfcnKXEVKdHz" // TODO: load from env
 )
 
 type value struct {
 	createdAt time.Time
-	username  string
+	player    game.Player
 	gameID    uuid.UUID
 }
 
 type RandomGen struct {
-	r *rand.Rand
 	s map[string]value
-	l int
 }
 
 // New returns a new RandomGen
 func New(ctx context.Context) RandomGen {
-	r := RandomGen{
-		r: rand.New(rand.NewSource(time.Now().UnixNano())),
-		l: defaultLenght,
-		s: make(map[string]value),
-	}
+	r := RandomGen{s: make(map[string]value)}
 	go r.cleanup(ctx)
 	return r
 }
 
 // Store stores the username and gameID associated with a the token and returns it
-func (rg RandomGen) Store(username string, gameID uuid.UUID) string {
-	token := make([]byte, rg.l)
-	for i := 0; i < rg.l; i++ {
-		token[i] = characters[rg.r.Intn(len(characters))]
+func (rg RandomGen) Store(player game.Player, gameID uuid.UUID) string {
+	hash256 := sha256.New()
+	data := player.Username + salt + gameID.String()
+	hash256.Write([]byte(data))
+	token := hex.EncodeToString(hash256.Sum(nil))
+	// if the user already issued the token
+	if _, ok := rg.s[token]; ok {
+		return token
 	}
-	tokenString := string(token)
-	rg.s[tokenString] = value{
-		username:  username,
+	rg.s[token] = value{
+		player:    player,
 		gameID:    gameID,
 		createdAt: time.Now(),
 	}
-	return tokenString
+	return token
 }
 
 // Get returns the username and gameID associated with the token
-func (r RandomGen) Get(token string) (string, uuid.UUID, bool) {
+func (r RandomGen) Get(token string) (game.Player, uuid.UUID, bool) {
 	v, ok := r.s[token]
 	if !ok {
-		return "", uuid.Nil, false
+		return game.Player{}, uuid.Nil, false
 	}
-	return v.username, v.gameID, true
+	return v.player, v.gameID, true
 }
 
 // cleanup removes all the values that are older than valueMaxLife

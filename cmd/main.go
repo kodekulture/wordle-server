@@ -10,11 +10,13 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/dgraph-io/badger"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/spf13/viper"
 
 	"github.com/Chat-Map/wordle-server/handler"
 	"github.com/Chat-Map/wordle-server/handler/token"
+	"github.com/Chat-Map/wordle-server/repository/badgr"
 	"github.com/Chat-Map/wordle-server/repository/postgres"
 	"github.com/Chat-Map/wordle-server/service"
 )
@@ -29,6 +31,7 @@ func readInConfig() error {
 }
 
 func main() {
+	done := make(chan struct{})
 	appCtx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
@@ -40,17 +43,25 @@ func main() {
 	if err != nil {
 		log.Fatal(err)
 	}
-	srv := service.New(appCtx, postgres.NewGameRepo(db), postgres.NewPlayerRepo(db))
+	cache, err := getCacher()
+	if err != nil {
+		log.Fatal(err)
+	}
+	srv, err := service.New(appCtx, postgres.NewGameRepo(db), postgres.NewPlayerRepo(db), badgr.New(cache))
+	if err != nil {
+		log.Fatal(err)
+	}
 	tokener, err := token.New([]byte(config.PASETOKey), "", time.Hour)
 	if err != nil {
 		log.Fatal(err)
 	}
 	h := handler.New(srv, tokener)
-	go shutdown(h)
+	go shutdown(h, done)
 	log.Printf("server started on port: %s", config.Port)
 	if err = h.Start(config.Port); err != nil && !errors.Is(err, http.ErrServerClosed) {
 		log.Fatal(err)
 	}
+	<-done
 }
 
 func getConnection(ctx context.Context) (*pgxpool.Pool, error) {
@@ -65,21 +76,35 @@ func getConnection(ctx context.Context) (*pgxpool.Pool, error) {
 	return conn, nil
 }
 
-func shutdown(s *handler.Handler) {
+func getCacher() (*badger.DB, error) {
+	// Open the Badger database located in the /tmp/badger directory.
+	// It will be created if it doesn't exist.
+	db, err := badger.Open(badger.DefaultOptions(config.BADGER_PATH))
+	if err != nil {
+		return nil, err
+	}
+	return db, nil
+}
+
+func shutdown(s *handler.Handler, done chan<- struct{}) {
 	// Wait for interrupt signal to gracefully shutdown the server with
 	sig := make(chan os.Signal, 1)
-	signal.Notify(sig, os.Interrupt, syscall.SIGTERM)
+	signal.Notify(sig, os.Interrupt, syscall.SIGTERM, syscall.SIGINT)
 	<-sig
+	log.Println("shutdown started")
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second*5)
 	defer cancel()
 	err := s.Stop(ctx)
 	if err != nil {
 		log.Fatal(err)
 	}
+	log.Println("shutdown complete")
+	close(done)
 }
 
 var config struct {
 	Port        string `mapstructure:"PORT"`
 	PostgresURL string `mapstructure:"POSTGRES_URL"`
+	BADGER_PATH string `mapstructure:"BADGER_PATH"`
 	PASETOKey   string `mapstructure:"PASETO_KEY"`
 }

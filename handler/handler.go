@@ -4,10 +4,10 @@ import (
 	"context"
 	"log"
 	"net/http"
-	"time"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
+	"github.com/gorilla/websocket"
 	"github.com/lordvidex/errs"
 	"github.com/lordvidex/x/auth"
 	"github.com/lordvidex/x/ptr"
@@ -15,28 +15,36 @@ import (
 	"github.com/lordvidex/x/resp"
 
 	"github.com/Chat-Map/wordle-server/game"
-	"github.com/Chat-Map/wordle-server/game/word"
 	"github.com/Chat-Map/wordle-server/handler/token"
 	"github.com/Chat-Map/wordle-server/service"
 )
 
+var (
+	// Create upgrade websocket connection
+	upgrader = websocket.Upgrader{
+		ReadBufferSize:  1024 * 1024,
+		WriteBufferSize: 1024 * 1024,
+		//Solving cross-domain problems
+		CheckOrigin: func(r *http.Request) bool {
+			return true
+		},
+	}
+)
+
 type Handler struct {
-	s       *http.Server
-	router  chi.Router
-	srv     *service.Service
-	token   token.Handler
-	wordGen word.Generator
+	s      *http.Server
+	router chi.Router
+	srv    *service.Service
+	token  token.Handler
 }
 
 func New(srv *service.Service, tokenHandler token.Handler) *Handler {
 	h := &Handler{
-		router:  chi.NewRouter(),
-		srv:     srv,
-		token:   tokenHandler,
-		wordGen: word.NewLocalGen(),
+		router: chi.NewRouter(),
+		srv:    srv,
+		token:  tokenHandler,
 	}
 
-	Hub.s = srv
 	h.setup()
 	return h
 }
@@ -151,14 +159,8 @@ func (h *Handler) createRoom(w http.ResponseWriter, r *http.Request) {
 		resp.Error(w, ErrUnauthenticated)
 		return
 	}
-	// 2. create a room with the user as the creator and store this room in temporary area (Hub)
-	wrd := h.wordGen.Generate(word.Length)
-	log.Println(wrd)
-	g := game.New(player.Username, word.New(wrd))
-	room := NewRoom(g)
-
-	// 3. return the room id
-	result := roomIDResponse{ID: room.g.ID.String()}
+	uid := h.srv.NewRoom(player.Username)
+	result := roomIDResponse{ID: uid}
 	resp.JSON(w, result)
 }
 
@@ -183,15 +185,13 @@ func (h *Handler) joinRoom(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	// find the room in the temporary area (Hub)
-	Hub.mu.RLock()
-	_, ok := Hub.rooms[uid]
-	Hub.mu.RUnlock()
+	_, ok := h.srv.GetRoom(uid)
 	if !ok {
-		resp.Error(w, errs.B().Msg("room not found").Err())
+		resp.Error(w, errs.B().Code(errs.NotFound).Msg("room not found").Err())
 		return
 	}
 	// return a token for the user to join the room with ws
-	token := h.srv.CreateToken(player.Username, uid)
+	token := h.srv.CreateInvite(ptr.ToObj(player), uid)
 	result := joinRoomResponse{Token: token}
 	resp.JSON(w, result)
 }
@@ -208,9 +208,9 @@ func (h *Handler) rooms(w http.ResponseWriter, r *http.Request) {
 		resp.Error(w, err)
 		return
 	}
-	games := make([]gameResponse, len(rooms))
+	games := make([]game.Response, len(rooms))
 	for i, g := range rooms {
-		games[i] = toGame(g, player.Username)
+		games[i] = game.ToResponse(g, player.Username)
 	}
 	resp.JSON(w, games)
 }
@@ -228,88 +228,46 @@ func (h *Handler) room(w http.ResponseWriter, r *http.Request) {
 		resp.Error(w, errs.B().Code(errs.InvalidArgument).Msg("invalid parameters").Err())
 		return
 	}
-	game, err := h.srv.GetGame(ctx, uid)
+	gm, err := h.srv.GetGame(ctx, uid)
 	if err != nil {
 		resp.Error(w, err)
 		return
 	}
-	resp.JSON(w, toGame(ptr.ToObj(game), player.Username))
+	resp.JSON(w, game.ToResponse(ptr.ToObj(gm), player.Username))
 }
 
 func (h *Handler) Stop(ctx context.Context) error {
+	h.srv.Stop(ctx)
 	return h.s.Shutdown(ctx)
 }
 
-type gameResponse struct {
-	CreatedAt       time.Time             `json:"created_at"`
-	StartedAt       *time.Time            `json:"started_at"`
-	EndedAt         *time.Time            `json:"ended_at"`
-	Creator         string                `json:"creator"`
-	CorrectWord     *string               `json:"correct_word,omitempty"` // returned only if game has ended
-	Guesses         []guessResponse       `json:"guesses"`                // contains the guesses of the current player
-	GamePerformance []playerGuessResponse `json:"game_performance"`       // contains the best guesses of all players
-	ID              uuid.UUID             `json:"id"`
-}
+func (h *Handler) live(w http.ResponseWriter, r *http.Request) {
+	// Parse token from request query
+	token := r.URL.Query().Get("token")
+	p, gameID, ok := h.srv.GetInviteData(token)
+	if !ok {
+		resp.Error(w, errs.B().Code(errs.InvalidArgument).Msg("invalid token").Err())
+		return
+	}
 
-type guessResponse struct {
-	// Word can be nil if the word was not played by this user
-	Word     *string   `json:"word,omitempty"`
-	PlayedAt time.Time `json:"played_at"`
-	Status   []int     `json:"status,omitempty"`
-}
+	room, ok := h.srv.GetRoom(gameID)
+	if !ok {
+		resp.Error(w, errs.B().Code(errs.InvalidArgument).Msg("game not found").Err())
+		return
+	}
 
-type playerGuessResponse struct {
-	Username      string        `json:"username,omitempty"`
-	GuessResponse guessResponse `json:"guess_response,omitempty"`
-	RankOffset    *int          `json:"rank_offset,omitempty"`
-}
+	// Check if the game has started already and user has not joined
+	if err := room.CanJoin(p.Username); err != nil {
+		resp.Error(w, errs.B(err).Code(errs.InvalidArgument).Err())
+		return
+	}
 
-func toGame(g game.Game, username string) gameResponse {
-	setWord := func(w string) *string {
-		if g.EndedAt == nil {
-			return nil
-		}
-		return ptr.String(w)
+	// Upgrade the HTTP connection to a websocket connection
+	conn, err := upgrader.Upgrade(w, r, nil)
+	if err != nil {
+		log.Printf("error upgrading connection: %v", err)
+		return
 	}
-	perf := make([]playerGuessResponse, 0, len(g.Sessions))
-	for name, s := range g.Sessions {
-		perf = append(perf, playerGuessResponse{
-			Username:      name,
-			GuessResponse: toGuess(s.BestGuess(), false),
-		})
-	}
-	var guesses []guessResponse
-	userSession, ok := g.Sessions[username]
-	if ok {
-		guesses = make([]guessResponse, len(userSession.Guesses))
-		for i, guess := range userSession.Guesses {
-			guesses[i] = toGuess(guess, true)
-		}
-	}
-	return gameResponse{
-		CreatedAt:       g.CreatedAt,
-		StartedAt:       g.StartedAt,
-		EndedAt:         g.EndedAt,
-		Creator:         g.Creator,
-		CorrectWord:     setWord(g.CorrectWord.Word),
-		Guesses:         guesses,
-		GamePerformance: perf,
-		ID:              g.ID,
-	}
-}
 
-// toGuess converts a word.Word to a guessResponse.
-// If showWord is true, the word is returned, otherwise it is nil.
-func toGuess(w word.Word, showWord bool) guessResponse {
-	guessed := func() *string {
-		if showWord {
-			return ptr.String(w.Word)
-		}
-		return nil
-	}
-	return guessResponse{
-		Word:     guessed(),
-		PlayedAt: w.PlayedAt.Time,
-		Status:   w.Stats.Ints(),
-	}
+	room.Join(p, conn)
 }

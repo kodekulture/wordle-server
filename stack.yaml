@@ -3,13 +3,10 @@ version: '3.8'
 services:
   app: 
     container_name: "wordle-app"
+    image: wordle-server:0.0.1
     volumes:
-      - .:/wordle
+      - ./.env:/.env
       - ./badger_db:/badger_db
-    build: 
-      context: .
-      dockerfile: Dockerfile
-      target: development
     ports:
       - ${PORT}:${PORT}
     environment:
@@ -24,7 +21,6 @@ services:
       retries: 5
     depends_on:
           - db
-
     
   db:
     container_name: "wordle-db" 

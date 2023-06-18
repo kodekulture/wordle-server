@@ -34,7 +34,7 @@ func TestToGame(t *testing.T) {
 	testcases := []struct {
 		name string
 		args args
-		want gameResponse
+		want game.Response
 	}{
 		{
 			name: "simple session",
@@ -42,24 +42,24 @@ func TestToGame(t *testing.T) {
 				username: "user1",
 				g:        *genGame(),
 			},
-			want: gameResponse{
-				Guesses: []guessResponse{
+			want: game.Response{
+				Guesses: []game.GuessResponse{
 					// CORRE
 					{Word: ptr.String("NATCO"), Status: []int{1, 1, 1, 2, 2}},
 					{Word: ptr.String("NOTCO"), Status: []int{1, 3, 1, 2, 1}},
 				},
-				GamePerformance: []playerGuessResponse{
+				GamePerformance: []game.PlayerGuessResponse{
 					{
 						Username:      "user1",
-						GuessResponse: guessResponse{Word: ptr.String("NOTCO"), Status: []int{1, 3, 1, 2, 1}},
+						GuessResponse: game.GuessResponse{Word: ptr.String("NOTCO"), Status: []int{1, 3, 1, 2, 1}},
 					},
 					{
 						Username:      "user2",
-						GuessResponse: guessResponse{Word: ptr.String("NOTCO"), Status: []int{1, 3, 1, 2, 1}},
+						GuessResponse: game.GuessResponse{Word: ptr.String("NOTCO"), Status: []int{1, 3, 1, 2, 1}},
 					},
 					{
 						Username:      "user3",
-						GuessResponse: guessResponse{Word: ptr.String("NOTCO"), Status: []int{1, 3, 1, 2, 1}},
+						GuessResponse: game.GuessResponse{Word: ptr.String("NOTCO"), Status: []int{1, 3, 1, 2, 1}},
 					},
 				},
 			},
@@ -67,8 +67,8 @@ func TestToGame(t *testing.T) {
 	}
 	for _, tt := range testcases {
 		t.Run(tt.name, func(t *testing.T) {
-			got := toGame(tt.args.g, tt.args.username)
-			// check that the gameResponse sessions are correct
+			got := game.ToResponse(tt.args.g, tt.args.username)
+			// check that the game.GameResponse sessions are correct
 			// compare the game sessions
 			require.Equal(t, len(tt.want.Guesses), len(got.Guesses), "sessions length mismatch")
 			require.Equal(t, len(tt.want.GamePerformance), len(got.GamePerformance), "game performance length mismatch")
@@ -80,7 +80,7 @@ func TestToGame(t *testing.T) {
 			}
 
 			t.Log("Test Game ratings for all users")
-			m := make(map[string]playerGuessResponse)
+			m := make(map[string]game.PlayerGuessResponse)
 			for _, s := range tt.want.GamePerformance {
 				m[s.Username] = s
 			}

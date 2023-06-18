@@ -1,30 +1,19 @@
-package handler
+package game
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log"
+	"strings"
 	"sync"
 	"time"
 
-	"github.com/google/uuid"
 	"github.com/gorilla/websocket"
 	"github.com/lordvidex/x/ptr"
 
-	"github.com/Chat-Map/wordle-server/game"
 	"github.com/Chat-Map/wordle-server/game/word"
-	"github.com/Chat-Map/wordle-server/service"
 )
-
-var Hub struct {
-	rooms map[uuid.UUID]*Room
-	mu    sync.RWMutex // protects the room map
-	s     *service.Service
-}
-
-func init() {
-	Hub.rooms = make(map[uuid.UUID]*Room)
-}
 
 type Event string
 
@@ -45,6 +34,11 @@ const (
 
 	CData  Event = "client/data"
 	CError Event = "client/error"
+
+	PJoin       Event = "private/join"
+	PLeave      Event = "private/leave"
+	PKickout    Event = "private/kickout"
+	PDisconnect Event = "private/disconnect"
 )
 
 type Payload struct {
@@ -62,6 +56,11 @@ func newPayload(event Event, data interface{}, from string) Payload {
 	}
 }
 
+type GameSaver interface {
+	FinishGame(context.Context, *Game) error
+	StartGame(context.Context, *Game) error
+}
+
 type Room struct {
 	// This context is used to protect writes in room's closed channels
 	// When sending to any of the room's channels(leaveChan, broadcast) this context
@@ -70,34 +69,65 @@ type Room struct {
 	ctx       context.Context
 	cancelCtx func() // cancel the room's context
 
-	mu        sync.Mutex // protects players map
 	players   map[string]*PlayerConn
 	broadcast chan Payload
-	leaveChan chan *PlayerConn // leftChan is used to notify the room when a player leaves
-	g         *game.Game
+	g         *Game
 
 	active bool // whether the game has started
 	closed bool // whether the game has finished
+
+	saver GameSaver
+}
+
+// ID returns the ID of the room which is the ID of the game
+func (r *Room) ID() string {
+	return r.g.ID.String()
+}
+
+// Game returns the game of the room
+func (r *Room) Game() *Game {
+	return r.g
+}
+
+// Join adds a player to the room
+func (r *Room) Join(p Player, conn *websocket.Conn) {
+	pc := newPlayerConn(conn, r, p)
+	r.tryBroadcast(newPayload(PJoin, pc, ""))
+}
+
+// CanJoin checks if a player can join the room
+func (r *Room) CanJoin(username string) error {
+	if r.IsClosed() {
+		return errors.New("the room is closed")
+	}
+	_, ok := r.g.Sessions[username]
+	if r.active && !ok {
+		return errors.New("the game has already started")
+	}
+	return nil
+}
+
+// IsClosed checks if the room is closed
+func (r *Room) IsClosed() bool {
+	return r.closed
 }
 
 // NewRoom creates a new room and add it to the Hub.
-func NewRoom(game *game.Game) *Room {
+func NewRoom(game *Game, storer GameSaver) *Room {
 	ctx, cancel := context.WithCancel(context.Background())
-	room := Room{
+	room := &Room{
 		ctx:       ctx,
 		cancelCtx: cancel,
 		players:   make(map[string]*PlayerConn),
 		broadcast: make(chan Payload),
-		leaveChan: make(chan *PlayerConn),
 		g:         game,
-	}
+		saver:     storer,
 
-	Hub.mu.Lock()
-	Hub.rooms[room.g.ID] = &room
-	Hub.mu.Unlock()
+		active: game.StartedAt != nil && game.EndedAt == nil,
+		closed: game.EndedAt != nil,
+	}
 	go room.run()
-	go room.leave()
-	return &room
+	return room
 }
 
 // start Process `SStart` event and broadcasts a `CStart` event to all players in the room.
@@ -114,12 +144,13 @@ func (r *Room) start(m Payload) {
 	}
 	r.g.Start()
 	// Save the game to the database
-	// TODO: Uncomment this when the database is ready
-	_ = Hub.s.StartGame(r.ctx, r.g)
-	// if err != nil {
-	// 	m.sender.write(newPayload(CError, "Failed to start game", ""))
-	// 	return
-	// }
+	if r.saver != nil {
+		err := r.saver.StartGame(r.ctx, r.g)
+		if err != nil {
+			m.sender.write(newPayload(CError, "Failed to start game", ""))
+			return
+		}
+	}
 	r.active = true
 	r.sendAll(newPayload(CStart, "Game started!", ""))
 }
@@ -142,7 +173,7 @@ func (r *Room) play(m Payload) {
 		m.sender.write(newPayload(CError, "Room isn't active", ""))
 		return
 	}
-	session := r.g.Sessions[m.sender.Username]
+	session := r.g.Sessions[m.sender.PName()]
 	// If the user is not in the game, return an error
 	if session == nil {
 		m.sender.write(newPayload(CError, "Invalid user session", ""))
@@ -181,9 +212,9 @@ func (r *Room) play(m Payload) {
 	m.sender.write(newPayload(CResult, w.Stats, ""))
 
 	// Send the result to all players in the room
-	result := playerGuessResponse{
+	result := PlayerGuessResponse{
 		Username:      m.sender.PName(),
-		GuessResponse: toGuess(w, false),
+		GuessResponse: ToGuess(w, false),
 		RankOffset:    ptr.Obj(dRank),
 	}
 	r.sendAll(newPayload(CPlay, result, m.From))
@@ -192,62 +223,72 @@ func (r *Room) play(m Payload) {
 	if r.g.HasEnded() {
 		r.sendAll(newPayload(CFinish, "Game has ended", ""))
 		r.close()
-		err := Hub.s.FinishGame(context.Background(), r.g)
-		if err != nil {
-			log.Printf("failed to finish game: %v", err)
-		}
 	}
 }
 
-func (r *Room) join(user game.Player, conn *websocket.Conn) {
-	r.mu.Lock()
-	old := r.players[user.Username]
-	r.mu.Unlock()
-	// Kickout the old player with the same username
+func (r *Room) join(m Payload) {
+	pconn := m.Data.(*PlayerConn)
+	old := r.players[pconn.PName()]
+	// If the player is already in the room, kick him out.
 	if old != nil {
-		r.kickout(old)
+		r.leave(newPayload(PKickout, old, ""))
 	}
-	// Create a new playerConn
-	new := newPlayerConn(conn, r, user.Username)
-	// Create a new session for the user if it doesn't exist
-	if _, ok := r.g.Sessions[user.Username]; !ok {
-		r.g.Join(user)
+	// Create a new session for the user if it doesn't exist.
+	if _, ok := r.g.Sessions[pconn.PName()]; !ok {
+		r.g.Join(pconn.player)
 	}
-	// Add the `new` player to the room and remove the `old` player
-	r.mu.Lock()
-	r.players[user.Username] = new
-	r.mu.Unlock()
-	// Send the player his current state in the game
-	new.write(newPayload(CData, r.g.Sessions[user.Username].Guesses, ""))
-	// Notify players that that a new player has joined
-	text := fmt.Sprintf("%s has joined", new.PName())
-	r.sendAll(newPayload(CJoin, text, ""))
-}
-
-// kickout kicks out a player from the room.
-// Sends a username to the `leaveChan` channel or do nothing
-// if the room is closed(i.e. context cancelled).
-func (r *Room) kickout(p *PlayerConn) {
-	select {
-	case <-r.ctx.Done():
-	case r.leaveChan <- p:
-	}
-}
-
-// leave broadcasts a `CLeave` event to all players in the room.
-func (r *Room) leave() {
-	for p := range r.leaveChan {
-		r.mu.Lock()
-		p.Close()
-		p.room = nil // set room to nil to free memory
-		// If currect loged in user is the same as the player
-		// that is being kicked out, remove the player from the room.
-		// This check is made to avoid kicking a the new player who just joined
-		if r.players[p.Username] == p {
-			delete(r.players, p.PName())
+	// Send the player his current state in the game.
+	// On error, close the player connection since he will have inconsistent data with which he can't play the game.
+	err := pconn.write(newPayload(CData, r.g.Sessions[pconn.PName()].Guesses, ""))
+	if err != nil {
+		log.Printf("failed to send player data: %v", err)
+		err = pconn.close()
+		if err != nil {
+			log.Printf("failed to close player connection: %v", err)
 		}
-		r.mu.Unlock()
-		r.sendAll(newPayload(CLeave, fmt.Sprintf("%s has left", p.PName()), ""))
+		return
+	}
+	r.players[pconn.PName()] = pconn
+	r.sendAll(newPayload(CJoin, fmt.Sprintf("%s has joined", pconn.PName()), ""))
+}
+
+// leave process `SLeave` and `SKickout` events and broadcasts a `CLeave` event to all players in the room.
+// Also the player connection is closed and  is removed from the room (if the current user is the same as the player being kicked out).
+func (r *Room) leave(m Payload) {
+	var players []*PlayerConn
+	switch m.Data.(type) {
+	case *PlayerConn:
+		players = append(players, m.Data.(*PlayerConn))
+	case []*PlayerConn:
+		players = m.Data.([]*PlayerConn)
+	default:
+		log.Printf("Unkown payload type provided for leave: %#v", m.Data)
+		return
+	}
+	// Process the player list and close their connections
+	for i, p := range players {
+		// If the current player isn't the one in player room do nothing, since this function is called by many others
+		// like `sendAll`, `plauerConn.write` and `playerConn.read` so we might get repeated requests having the same `playerConn`
+		// Notice that the `players[i]` is set to `nil` to avoid sending message twice for kicking out the signle users
+		if !p.active {
+			players[i] = nil
+			continue
+		}
+		p.close()
+		delete(r.players, p.PName())
+	}
+	for _, p := range players {
+		// `p` is nil if and only if the player has already been kicked out
+		if p == nil {
+			continue
+		}
+		var text string
+		if m.Type == PKickout {
+			text = fmt.Sprintf("%s has been kicked out", p.PName())
+		} else { // PLeave
+			text = fmt.Sprintf("%s has left", p.PName())
+		}
+		r.sendAll(newPayload(CLeave, text, ""))
 	}
 }
 
@@ -262,19 +303,19 @@ func (r *Room) close() {
 	// Cancel the context to stop the `leave` goroutine and close
 	// all prevent any new players from sending messages to the room.
 	r.cancelCtx()
-	r.mu.Lock()
 	// Close all players connection
 	for _, p := range r.players {
-		p.Close()
+		p.close()
 		delete(r.players, p.PName())
 	}
-	r.mu.Unlock()
 	close(r.broadcast)
-	close(r.leaveChan)
-	// Remove the room from the hub to free memory
-	Hub.mu.Lock()
-	delete(Hub.rooms, r.g.ID)
-	Hub.mu.Unlock()
+	// Store the game in the database
+	if r.saver != nil {
+		err := r.saver.FinishGame(context.Background(), r.g)
+		if err != nil {
+			log.Printf("failed to store game: %v", err)
+		}
+	}
 }
 
 // run processes all messages sent to the room.
@@ -288,26 +329,36 @@ func (r *Room) run() {
 			r.message(message)
 		case SPlay:
 			r.play(message)
+		case PJoin:
+			r.join(message)
+		case PLeave:
+			r.leave(message)
 		default:
 			message.sender.write(newPayload(CError, "Unknown message type", ""))
 		}
 	}
 }
 
+// tryBroadcast tries to broadcast the payload to all players in the room if the room is active.
+func (r *Room) tryBroadcast(payload Payload) {
+	select {
+	case <-r.ctx.Done():
+	case r.broadcast <- payload:
+	}
+}
+
 // sendAll sends the payload to all players in the room.
 // If sending the payload fails, the player is removed from the room.
 func (r *Room) sendAll(payload Payload) {
-	r.mu.Lock()
-	defer r.mu.Unlock()
+	errs := make([]*PlayerConn, 0)
 	for _, p := range r.players {
 		err := p.write(payload)
 		if err != nil {
-			// r.kickout(p) is called in a goroutine to avoid mutext lock
-			// since the lock is already acquired in this function
-			go func(p *PlayerConn) {
-				r.kickout(p)
-			}(p)
+			errs = append(errs, p)
 		}
+	}
+	if len(errs) != 0 {
+		r.leave(newPayload(PLeave, errs, ""))
 	}
 }
 
@@ -321,41 +372,45 @@ var (
 // PlayerConn represents a player in the game.
 // A player can be in multiple rooms, but only one game at a time.
 type PlayerConn struct {
-	conn     *websocket.Conn
-	room     *Room
-	Username string
-	writeMu  sync.Mutex
+	conn    *websocket.Conn
+	room    *Room
+	player  Player
+	writeMu sync.Mutex
+	active  bool // indicator for player's connection status
 
 	t *time.Ticker
 }
 
 // PName returns the player name.
 func (p *PlayerConn) PName() string {
-	return p.Username
+	return p.player.Username
 }
 
 // newPlayerConn creates a new player.
 // This function starts the read goroutine to forward messages to the room.
 // Also starts the ping goroutine to ping the player every 5 seconds
 // to check if the player is still connected otherwise the connection is closed.
-func newPlayerConn(conn *websocket.Conn, room *Room, username string) *PlayerConn {
+func newPlayerConn(conn *websocket.Conn, room *Room, player Player) *PlayerConn {
 	// Create a ticker to ping the player every 5 seconds
 	// The ticker is stored in the player struct so that it can be stopped
 	// on the player.Close() call.
-	ticker := time.NewTicker(time.Second * 5)
-	player := PlayerConn{
-		Username: username,
-		conn:     conn,
-		room:     room,
-		t:        ticker,
+	ticker := time.NewTicker(pingInterval)
+	p := PlayerConn{
+		player: player,
+		conn:   conn,
+		room:   room,
+		active: true,
+
+		t: ticker,
 	}
-	go player.read()
-	go player.ping()
-	return &player
+	go p.read()
+	go p.ping()
+	return &p
 }
 
 // Close closes the player connection.
-func (p *PlayerConn) Close() error {
+func (p *PlayerConn) close() error {
+	p.active = false
 	p.t.Stop()
 	return p.conn.Close()
 }
@@ -369,7 +424,7 @@ func (p *PlayerConn) ping() {
 		err := p.conn.WriteMessage(websocket.PingMessage, []byte{})
 		p.writeMu.Unlock()
 		if err != nil {
-			p.room.kickout(p)
+			p.room.tryBroadcast(newPayload(PLeave, p, ""))
 			return
 		}
 	}
@@ -382,19 +437,17 @@ func (p *PlayerConn) read() {
 		var payload Payload
 		err := p.conn.ReadJSON(&payload)
 		if err != nil {
-			// If the error is not a close error, then the player is kicked out.
-			// if !websocket.IsCloseError(err, websocket.CloseNormalClosure, websocket.CloseAbnormalClosure) {
-			// 	p.room.kickout(p)
-			// }
-			return
+			p.room.tryBroadcast(newPayload(PLeave, p, ""))
+			break
 		}
-		payload.From = p.Username // From set by the client is ignored by the server for security reasons.
+		// if the payload type is not prefixed with "server/" then it is not allowed to be sent by the player.
+		if !strings.HasPrefix(string(payload.Type), "server/") {
+			p.write(newPayload(CError, "unsupported action", ""))
+			continue
+		}
+		payload.From = p.PName() // From set by the client is ignored by the server for security reasons.
 		payload.sender = p
-		select {
-		case <-p.room.ctx.Done():
-			return
-		case p.room.broadcast <- payload:
-		}
+		p.room.tryBroadcast(payload)
 	}
 }
 
