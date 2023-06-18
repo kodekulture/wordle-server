@@ -26,3 +26,6 @@ run:
 	rm -rf ./bin/main
 	go build -o ./bin/main ./cmd/main.go
 	./bin/main
+
+test: 
+	go test ./... -json --cover | tparse -all
