@@ -200,7 +200,7 @@
 ### [WS] /live?token=XXXXX
 
 * Connects to the game's room
-* The token provied can be obtained from the [[GET]/join/room/{id}](#get-joinroomid)
+* The token provied can be obtained from the [join room endpoint](#get-joinroomid-)
 * Once connected you will be able to send and receive messages from the server, messages  have two types 
   * [WSE] `server/xxx` means `client` => `server`
   * [WSE] `client/xxx` means `server` => `client`
