@@ -3,9 +3,10 @@ package game
 import (
 	"time"
 
-	"github.com/Chat-Map/wordle-server/game/word"
 	"github.com/google/uuid"
 	"github.com/lordvidex/x/ptr"
+
+	"github.com/Chat-Map/wordle-server/game/word"
 )
 
 type Response struct {
@@ -27,9 +28,15 @@ type GuessResponse struct {
 }
 
 type PlayerGuessResponse struct {
+	// RankOffset is the amount of players that this user has displaced in the leaderboard
+	// this field is set when the game is active, and the user's guess made him move up the leaderboard
+	RankOffset *int `json:"rank_offset,omitempty"`
+
+	// Rank is the position of the user in the leaderboard
+	// This field is not set until the game has ended
+	Rank          *int          `json:"rank,omitempty"`
 	Username      string        `json:"username,omitempty"`
 	GuessResponse GuessResponse `json:"guess_response,omitempty"`
-	RankOffset    *int          `json:"rank_offset,omitempty"`
 }
 
 func ToResponse(g Game, username string) Response {
@@ -44,6 +51,12 @@ func ToResponse(g Game, username string) Response {
 		perf = append(perf, PlayerGuessResponse{
 			Username:      name,
 			GuessResponse: ToGuess(s.BestGuess(), false),
+			Rank: func() *int {
+				if !g.HasEnded() {
+					return nil
+				}
+				return ptr.Obj(g.Leaderboard.Positions[name])
+			}(),
 		})
 	}
 	var guesses []GuessResponse

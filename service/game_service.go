@@ -3,11 +3,12 @@ package service
 import (
 	"context"
 
+	"github.com/google/uuid"
+	"github.com/lordvidex/errs"
+
 	"github.com/Chat-Map/wordle-server/game"
 	"github.com/Chat-Map/wordle-server/repository"
 	"github.com/Chat-Map/wordle-server/service/hasher"
-	"github.com/google/uuid"
-	"github.com/lordvidex/errs"
 )
 
 type gameService struct {
@@ -44,8 +45,8 @@ func (s *gameService) ComparePasswords(hash, original string) error {
 	return s.h.Compare(hash, original)
 }
 
-func (s *gameService) GetGame(ctx context.Context, roomID uuid.UUID) (*game.Game, error) {
-	room, err := s.gr.FetchGame(ctx, roomID)
+func (s *gameService) GetGame(ctx context.Context, userID int, roomID uuid.UUID) (*game.Game, error) {
+	room, err := s.gr.FetchGame(ctx, userID, roomID)
 	if err != nil {
 		return nil, errs.WrapCode(err, errs.InvalidArgument, "error fetching game")
 	}

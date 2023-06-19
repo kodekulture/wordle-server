@@ -206,15 +206,15 @@ func TestRankBoard_FixPosition(t *testing.T) {
 			pos := tt.fields.withPos(copyMap(positions))
 			rnks := tt.fields.withRanks(copySlice(copySlice(ranks)))
 			r := RankBoard{
-				positions: pos,
-				ranks:     rnks,
+				Positions: pos,
+				Ranks:     rnks,
 			}
-			before := r.positions[tt.args.username]
+			before := r.Positions[tt.args.username]
 			got := r.FixPosition(tt.args.username)
 			if got != tt.want {
 				t.Errorf("RankBoard.FixPosition() = %v, want %v", got, tt.want)
 			}
-			assert.Equal(t, before-got, r.positions[tt.args.username])
+			assert.Equal(t, before-got, r.Positions[tt.args.username])
 		})
 	}
 }
@@ -231,4 +231,47 @@ func copySlice[K any](sl []K) []K {
 	c := make([]K, len(sl))
 	copy(c, sl)
 	return c
+}
+
+func TestSession_Resync(t *testing.T) {
+	tests := []struct {
+		name    string
+		session *Session
+		expect  *Session
+	}{
+		{
+			name: "session with no guesses",
+			session: &Session{
+				Guesses:   nil,
+				bestGuess: ptr.Obj(word.New("YAYAY")),
+			},
+			expect: &Session{
+				Guesses:   nil,
+				bestGuess: nil,
+			},
+		},
+		{
+			name: "session with words and no best guesses with no best guess",
+			session: &Session{
+				Guesses: []word.Word{
+					words[1], words[2], words[0],
+				},
+				bestGuess: ptr.Obj(words[1]),
+			},
+			expect: &Session{
+				Guesses: []word.Word{
+					words[1], words[2], words[0],
+				},
+				bestGuess: ptr.Obj(words[0]),
+			},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			s := tt.session
+			s.Resync() // when
+			// then
+			assert.Equal(t, tt.expect, s)
+		})
+	}
 }

@@ -35,8 +35,8 @@ const (
 )
 
 type RankBoard struct {
-	positions map[string]int
-	ranks     []*Session
+	Positions map[string]int
+	Ranks     []*Session
 }
 
 func NewRankBoard(initial map[string]*Session) RankBoard {
@@ -49,8 +49,8 @@ func NewRankBoard(initial map[string]*Session) RankBoard {
 		index++
 	}
 	return RankBoard{
-		ranks:     ranks,
-		positions: positions,
+		Ranks:     ranks,
+		Positions: positions,
 	}
 }
 
@@ -59,14 +59,14 @@ func NewRankBoard(initial map[string]*Session) RankBoard {
 // It should be called after a new guess is made by this user.
 func (r RankBoard) FixPosition(username string) int {
 	var moves int // the amount of users displaced by the new rank
-	index := r.positions[username]
+	index := r.Positions[username]
 	for i := index; i > 0; i-- {
-		curr, prev := r.ranks[i], r.ranks[i-1]
+		curr, prev := r.Ranks[i], r.Ranks[i-1]
 		// TODO: add other comparators in else if
 		if curr.GreaterThan(prev) {
-			r.ranks[i-1], r.ranks[i] = curr, prev
-			r.positions[curr.Player.Username] = i - 1
-			r.positions[prev.Player.Username] = i
+			r.Ranks[i-1], r.Ranks[i] = curr, prev
+			r.Positions[curr.Player.Username] = i - 1
+			r.Positions[prev.Player.Username] = i
 			moves++
 		} else {
 			break
@@ -157,6 +157,16 @@ type Session struct {
 	bestGuess *word.Word
 	Player    Player
 	Guesses   []word.Word
+}
+
+// Resync loops over the player's guesses and updates the best guess
+func (s *Session) Resync() {
+	wrds := s.Guesses
+	s.Guesses = nil
+	s.bestGuess = nil
+	for _, w := range wrds {
+		s.play(w)
+	}
 }
 
 // play updates the current bestGuess made by the user
