@@ -22,7 +22,6 @@ const (
 	CMessage Event = "client/message"
 
 	SPlay   Event = "server/play"
-	CResult Event = "client/result"
 	CPlay   Event = "client/play"
 	CFinish Event = "client/finish"
 
@@ -209,9 +208,6 @@ func (r *Room) play(m Payload) {
 		m.sender.write(newPayload(CError, err.Error(), ""))
 		return
 	}
-
-	// Send the result to the player who submitted the message
-	m.sender.write(newPayload(CResult, w.Stats, ""))
 
 	// Send the result to all players in the room
 	result := PlayerGuessResponse{
