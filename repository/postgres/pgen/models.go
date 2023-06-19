@@ -18,12 +18,13 @@ type Game struct {
 }
 
 type GamePlayer struct {
-	GameID             pgtype.UUID
-	PlayerID           int32
-	PlayedWords        []byte
-	CorrectGuesses     pgtype.Int4
-	CorrectGuessesTime pgtype.Timestamptz
-	Finished           pgtype.Timestamptz
+	GameID        pgtype.UUID
+	PlayerID      int32
+	PlayedWords   []byte
+	BestGuess     pgtype.Text
+	BestGuessTime pgtype.Timestamptz
+	Finished      pgtype.Timestamptz
+	Rank          pgtype.Int4
 }
 
 type Player struct {

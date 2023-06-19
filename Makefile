@@ -19,5 +19,13 @@ migrate-down:
 sqlc:
 	sqlc generate -f ./sqlc.yaml
 
-build:
+docker-build:
 	docker build -t wordle-server:$TAG -f ./Dockerfile --target production .
+
+run: 
+	rm -rf ./bin/main
+	go build -o ./bin/main ./cmd/main.go
+	./bin/main
+
+test: 
+	go test ./... -json --cover | tparse -all

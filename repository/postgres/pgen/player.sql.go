@@ -33,3 +33,32 @@ func (q *Queries) FetchPlayerByUsername(ctx context.Context, username string) (P
 	err := row.Scan(&i.ID, &i.Username, &i.Password)
 	return i, err
 }
+
+const fetchPlayersByUsername = `-- name: FetchPlayersByUsername :many
+SELECT id, username FROM player WHERE username = ANY($1::varchar[])
+`
+
+type FetchPlayersByUsernameRow struct {
+	ID       int32
+	Username string
+}
+
+func (q *Queries) FetchPlayersByUsername(ctx context.Context, usernames []string) ([]FetchPlayersByUsernameRow, error) {
+	rows, err := q.db.Query(ctx, fetchPlayersByUsername, usernames)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []FetchPlayersByUsernameRow
+	for rows.Next() {
+		var i FetchPlayersByUsernameRow
+		if err := rows.Scan(&i.ID, &i.Username); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}

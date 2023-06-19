@@ -4,6 +4,8 @@ package repository
 import (
 	"context"
 
+	"github.com/google/uuid"
+
 	"github.com/Chat-Map/wordle-server/game"
 )
 
@@ -22,6 +24,21 @@ type Game interface {
 	// GetGames returns all games of a player
 	GetGames(ctx context.Context, playerID int) ([]game.Game, error)
 
-	// SaveGame saves a game into the dababase as well as the player's sessions
-	SaveGame(ctx context.Context, g *game.Game) error
+	// StartGame saves a game at the beginning of the game
+	StartGame(ctx context.Context, g *game.Game) error
+
+	// FinishGame saves a game at the end of the game
+	FinishGame(context.Context, *game.Game) error
+
+	// FetchGame returns a game with a given gameID
+	FetchGame(context.Context, int, uuid.UUID) (*game.Game, error)
+}
+
+type HubBackup interface {
+	// Load loads latest hub state
+	Load(converter func(g *game.Game) *game.Room) (hub map[uuid.UUID]*game.Room, err error)
+	// Dump dump the hub data into a file
+	Dump(hub map[uuid.UUID]*game.Room) error
+	// Delete deletes the hub data file
+	Drop() error
 }

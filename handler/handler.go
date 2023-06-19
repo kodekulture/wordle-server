@@ -6,33 +6,45 @@ import (
 	"net/http"
 
 	"github.com/go-chi/chi/v5"
+	"github.com/google/uuid"
+	"github.com/gorilla/websocket"
+	"github.com/lordvidex/errs"
 	"github.com/lordvidex/x/auth"
+	"github.com/lordvidex/x/ptr"
 	"github.com/lordvidex/x/req"
 	"github.com/lordvidex/x/resp"
 
 	"github.com/Chat-Map/wordle-server/game"
-	"github.com/Chat-Map/wordle-server/game/word"
 	"github.com/Chat-Map/wordle-server/handler/token"
 	"github.com/Chat-Map/wordle-server/service"
 )
 
+var (
+	// Create upgrade websocket connection
+	upgrader = websocket.Upgrader{
+		ReadBufferSize:  1024 * 1024,
+		WriteBufferSize: 1024 * 1024,
+		//Solving cross-domain problems
+		CheckOrigin: func(r *http.Request) bool {
+			return true
+		},
+	}
+)
+
 type Handler struct {
-	s       *http.Server
-	router  chi.Router
-	srv     *service.Service
-	token   token.Handler
-	wordGen word.Generator
+	s      *http.Server
+	router chi.Router
+	srv    *service.Service
+	token  token.Handler
 }
 
 func New(srv *service.Service, tokenHandler token.Handler) *Handler {
 	h := &Handler{
-		router:  chi.NewRouter(),
-		srv:     srv,
-		token:   tokenHandler,
-		wordGen: word.NewLocalGen(),
+		router: chi.NewRouter(),
+		srv:    srv,
+		token:  tokenHandler,
 	}
 
-	Hub.s = srv
 	h.setup()
 	return h
 }
@@ -96,6 +108,12 @@ func (h *Handler) login(w http.ResponseWriter, r *http.Request) {
 		resp.Error(w, err)
 		return
 	}
+	// validate password
+	if err = h.srv.ComparePasswords(player.Password, payload.Password); err != nil {
+		resp.Error(w, err)
+		return
+	}
+	// generate token
 	if token, err = h.token.Generate(r.Context(), *player); err != nil {
 		resp.Error(w, err)
 		return
@@ -141,24 +159,43 @@ func (h *Handler) createRoom(w http.ResponseWriter, r *http.Request) {
 		resp.Error(w, ErrUnauthenticated)
 		return
 	}
-	// 2. create a room with the user as the creator and store this room in temporary area (Hub)
-	wrd := h.wordGen.Generate(word.Length)
-	log.Println(wrd)
-	g := game.New(player.Username, word.New(wrd))
-	room := NewRoom(g)
-
-	// 3. return the room id
-	result := roomIDResponse{ID: room.g.ID.String()}
+	uid := h.srv.NewRoom(player.Username)
+	result := roomIDResponse{ID: uid}
 	resp.JSON(w, result)
 }
-func (h *Handler) joinRoom(w http.ResponseWriter, r *http.Request) {
-	// TODO: to be implemented later
-	// 1. get the user from the context
-	// 2. get the room id from the url params
-	// 3. find the room in the temporary area (Hub)
-	// 4a. if room does not exist return error
-	// 4b. if room exists, return a token for the user to join the room with ws
+
+type joinRoomResponse struct {
+	Token string `json:"token"`
 }
+
+// joinRoom creates a new player token used to join a room using websocket connection
+func (h *Handler) joinRoom(w http.ResponseWriter, r *http.Request) {
+	// get the user from the context
+	ctx := r.Context()
+	player := Player(ctx)
+	if player == nil {
+		resp.Error(w, ErrUnauthenticated)
+		return
+	}
+	// get the room id from the url params
+	id := chi.URLParam(r, "id")
+	uid, err := uuid.Parse(id)
+	if err != nil {
+		resp.Error(w, errs.B().Code(errs.InvalidArgument).Msg("invalid parameters").Err())
+		return
+	}
+	// find the room in the temporary area (Hub)
+	_, ok := h.srv.GetRoom(uid)
+	if !ok {
+		resp.Error(w, errs.B().Code(errs.NotFound).Msg("room not found").Err())
+		return
+	}
+	// return a token for the user to join the room with ws
+	token := h.srv.CreateInvite(ptr.ToObj(player), uid)
+	result := joinRoomResponse{Token: token}
+	resp.JSON(w, result)
+}
+
 func (h *Handler) rooms(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	player := Player(ctx)
@@ -169,16 +206,68 @@ func (h *Handler) rooms(w http.ResponseWriter, r *http.Request) {
 	rooms, err := h.srv.GetPlayerRooms(ctx, player.ID)
 	if err != nil {
 		resp.Error(w, err)
+		return
 	}
-	resp.JSON(w, rooms) // TODO: create separate response type for this
+	games := make([]game.Response, len(rooms))
+	for i, g := range rooms {
+		games[i] = game.ToResponse(g, player.Username)
+	}
+	resp.JSON(w, games)
 }
+
 func (h *Handler) room(w http.ResponseWriter, r *http.Request) {
-	// TODO:
-	// 1. get the user from the context
-	// 2. get the room id from the url params
-	// 3. return the game details for this room as well as the words this user played in this game
+	ctx := r.Context()
+	player := Player(ctx)
+	if player == nil {
+		resp.Error(w, ErrUnauthenticated)
+		return
+	}
+	id := chi.URLParam(r, "id")
+	uid, err := uuid.Parse(id)
+	if err != nil {
+		resp.Error(w, errs.B().Code(errs.InvalidArgument).Msg("invalid parameters").Err())
+		return
+	}
+	gm, err := h.srv.GetGame(ctx, player.ID, uid)
+	if err != nil {
+		resp.Error(w, err)
+		return
+	}
+	resp.JSON(w, game.ToResponse(ptr.ToObj(gm), player.Username))
 }
 
 func (h *Handler) Stop(ctx context.Context) error {
+	h.srv.Stop(ctx)
 	return h.s.Shutdown(ctx)
+}
+
+func (h *Handler) live(w http.ResponseWriter, r *http.Request) {
+	// Parse token from request query
+	token := r.URL.Query().Get("token")
+	p, gameID, ok := h.srv.GetInviteData(token)
+	if !ok {
+		resp.Error(w, errs.B().Code(errs.InvalidArgument).Msg("invalid token").Err())
+		return
+	}
+
+	room, ok := h.srv.GetRoom(gameID)
+	if !ok {
+		resp.Error(w, errs.B().Code(errs.InvalidArgument).Msg("game not found").Err())
+		return
+	}
+
+	// Check if the game has started already and user has not joined
+	if err := room.CanJoin(p.Username); err != nil {
+		resp.Error(w, errs.B(err).Code(errs.InvalidArgument).Err())
+		return
+	}
+
+	// Upgrade the HTTP connection to a websocket connection
+	conn, err := upgrader.Upgrade(w, r, nil)
+	if err != nil {
+		log.Printf("error upgrading connection: %v", err)
+		return
+	}
+
+	room.Join(p, conn)
 }
