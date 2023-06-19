@@ -10,9 +10,10 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/caarlos0/env/v8"
 	"github.com/dgraph-io/badger"
 	"github.com/jackc/pgx/v5/pgxpool"
-	"github.com/spf13/viper"
+	"github.com/joho/godotenv"
 
 	"github.com/Chat-Map/wordle-server/handler"
 	"github.com/Chat-Map/wordle-server/handler/token"
@@ -22,12 +23,11 @@ import (
 )
 
 func readInConfig() error {
-	viper.SetConfigFile(".env") // read from .env
-	viper.AutomaticEnv()        // read from env
-	if err := viper.ReadInConfig(); err != nil {
-		return errors.Join(err, errors.New("failed to read in config"))
+	err := godotenv.Load()
+	if err != nil {
+		log.Print("error loading environment files.. continuing..")
 	}
-	return viper.Unmarshal(&config)
+	return env.Parse(&config)
 }
 
 func main() {
@@ -79,7 +79,7 @@ func getConnection(ctx context.Context) (*pgxpool.Pool, error) {
 func getCacher() (*badger.DB, error) {
 	// Open the Badger database located in the /tmp/badger directory.
 	// It will be created if it doesn't exist.
-	db, err := badger.Open(badger.DefaultOptions(config.BADGER_PATH))
+	db, err := badger.Open(badger.DefaultOptions(config.BadgerPath))
 	if err != nil {
 		return nil, err
 	}
@@ -105,6 +105,6 @@ func shutdown(s *handler.Handler, done chan<- struct{}) {
 var config struct {
 	Port        string `mapstructure:"PORT"`
 	PostgresURL string `mapstructure:"POSTGRES_URL"`
-	BADGER_PATH string `mapstructure:"BADGER_PATH"`
+	BadgerPath  string `mapstructure:"BADGER_PATH"`
 	PASETOKey   string `mapstructure:"PASETO_KEY"`
 }
