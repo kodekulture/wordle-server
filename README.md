@@ -48,99 +48,260 @@
 
 ## Endpoints 🌐
 
-### [POST] /login
+### [POST] /login 🚪
 
-* Fields
-  * Username (unique)
-  * Password (just put anything bro)
-* Response
-  * Access token
+* Login to an existing user
 
-### [POST] /register
+<details open>
+<summary>Fields</summary>
 
-* Fields:
-  * Username (unique)
-  * Password (just put anything bro)
-* Response
-  * Access token
+```json
+{
+  "username": "username", // unique
+  "password": "password" // just put anything bro
+}
+```
+</details>
+
+
+<details open>
+<summary>Response</summary>
+
+```json
+{
+  "access_token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2Vybm"
+}
+```
+
+</details>
+
+### [POST] /register 📝
+
+* Creates a new user
+
+<details open>
+<summary>Fields</summary>
+
+```json
+{
+  "username": "username", // unique
+  "password": "password" // just put anything bro
+}
+```
+</details>
+
+
+<details open>
+<summary>Response</summary>
+
+```json
+{
+  "access_token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2Vybm"
+}
+```
+
+</details>
 
 ### [POST] /create/room 🔒
 
 * Creates a new room returning the id of this new room
 
+<details open>
+<summary>Response</summary>
+
+```json
+{
+  "id": "58dbe7f6-9d5c-4d48-8eac-73db92d4437d"
+}
+```
+
+</details>
+
 ### [GET] /join/room/{id} 🔒
 
-* Response:
-  * {token: xxxx}
+* Creates a new unique token for this (user & room)
+* Notice that the token is the same for each(user & room) pair, so requesting a token for the same (user & room) pair will return the same token.
+
+<details open>
+<summary>Response</summary>
+
+```json
+{
+  "token": "cb6fddb2f88acfcbbdc6c9900510"
+}
+```
+
+</details>
 
 ### [GET] /room/ 🔒
 
 * Return list of all games played by the user
 
+<details open>
+<summary>Response</summary>
+
+```json
+[
+  {
+    "created_at": "2023-06-19T19:51:58.802+03:00",
+    "started_at": "2023-06-19T19:53:02.886447+03:00",
+    "ended_at": "2023-06-19T19:51:58.802+03:00",
+    "creator": "username",
+    "correct_word": "FOLKS", // Displayed only if the game has ended
+    "id": "58dbe7f6-9d5c-4d48-8eac-73db92d4437d"
+  },
+  ...
+]
+```
+
+</details>
+
 ### [GET] /room/{roomID} 🔒
 
-* Response
-  * Submitted words (For this specific user)
-  * All the game details (Finished, players (usernames)
+* Return all the information about a specific game
+
+<details open>
+<summary>Response</summary>
+
+```json
+{
+    "created_at": "2023-06-19T19:51:58.802+03:00",
+    "started_at": "2023-06-19T19:53:02.886447+03:00",
+    "ended_at": "2023-06-19T19:51:58.802+03:00",
+    "creator": "username",
+    "correct_word": "FOLKS",
+    "guesses": [
+        {
+            "word": "FOLKS",
+            "played_at": "2023-06-19T16:53:27.581099801Z",
+            "status": [3,3,3,3,3]
+        },
+        ...
+    ],
+    "game_performance": [
+        {
+            "rank": 0,
+            "username": "escalopa",
+            "guess_response": {
+                "played_at": "2023-06-19T16:53:27.581099801Z",
+                "status": [3,3,3,3,3]
+            }
+        },
+        ...
+    ],
+    "id": "58dbe7f6-9d5c-4d48-8eac-73db92d4437d"
+}
+```
+
+</details>
 
 ## Websockets 🚀
 
-### [WS] /live?token=xxxx
+### [WS] /live?token=XXXXX
 
-### [WS] /live?player=<playerUsername>&room=<roomID>
+* Connects to the game's room
+* The token provied can be obtained from the [[GET]/join/room/{id}](#get-joinroomid)
+* Once connected you will be able to send and receive messages from the server, messages  have two types 
+  * [WSE] `server/xxx` means `client` => `server`
+  * [WSE] `client/xxx` means `server` => `client`
 
-* When a user joins the lobby of a game
-* If the game has started:
-    * Fetch array of sessions for every player
-    * The Player is rejected if he was not in the room before the game started
-    * The player is reconnected if he is an original member of the room
-* Else:
-    * Player is uniquely added to the room
-* [client/message](#wse-clientmessage): `{USERNAME} has joined the lobby`
+* Requests object struct
+```json
+{
+  "event": "event", // event name
+  "data": "data", // message body (can be anything)
+}
+```
 
 ### [WSE] server/message
 * Broadcasts a message to everyone in the lobby
-* Fields:
-    * Sender: <playerUsername>
-    * Message
+
+<details open>
+<summary>Fields</summary>
+
+```json
+{
+  "data": "Hello World"
+}
+```
+</details>
+
 * Triggers:
   * [client/message](#wse-clientmessage)
 
 ### [WSE] client/message
 
 * Server sends a message to all clients in the lobby (client should listen to this event to update the message box)
-* Fields:
-    * Sender: <playerUsername>
-    * Message
+
+<details open>
+<summary>Fields</summary>
+
+```json
+{
+  "data": "Hello World"
+  "from": "username"
+}
+```
+</details>
 
 ### [WSE] server/play
 
-* Checks:
-  * If the user has already won || The game has ended || Has finished his guesses
-    * no-op
+* Sends a word to the server to be played
 
-* Fields:
-  * Word
+<details open>
+<summary>Fields</summary>
 
-* Response:
-  * []int, Where each `i` can be {0,1,2,3}, Length of []int is the size of the word
+```json
+{
+  "event": "server/play",
+  "data": "FOLKS"
+}
+```
+</details>
 
 * Tiggers:
-  * [client/result](#wse-clientresult)
   * [client/play](#wse-clientplay)
-
-### [WSE] client/result
-
-* Returns the result of a `server/play` to the SENDER ONLY to show the result of a played word.
 
 ### [WSE] client/play
 
 * When a player submits a word, other users are notified about the status of the leaderboard of this user.
 * Users receives a `Session` object to update leaderboard
 
+<details open>
+<summary>Fields</summary>
+
+```json
+{
+    "event": "client/play",
+    "data": {
+        "rank_offset": 0, // amount of players that this user has displaced in the leaderboard
+        "username": "escalopa", // username of the player
+        "guess_response": {
+            "played_at": "2023-06-19T19:16:36.715290087Z",
+            "status": [1,2,2,1,3] // status of the word
+            // 3 => correct letter and position
+            // 2 => correct letter but wrong position
+            // 1 => wrong letter
+        }
+    },
+    "from": "escalopa" // username of the player
+}
+```
+</details>
+
 ### [WSE] server/start
 
 * Send a signal to mark the game as started and the server should now notify other players in the game about the event.
+
+<details open>
+<summary>Fields</summary>
+
+```json
+{
+  "event": "server/start",
+}
+```
+</details>
 
 * Triggers:
   * [client/start](#wse-clientstart)
@@ -149,9 +310,46 @@
 
 * Notify users that the game has started, Now they can submit words using /play
 
+<details open>
+<summary>Fields</summary>
+
+```json
+{
+  "event": "server/start",
+  "data": "Game has started"",
+}
+```
+</details>
+
 ### [WSE] client/data
 
-* Returns the current game data, it is usually sent at the beginning of a connection/reconnection to update the stored data on the client about the current game status.
+* Returns the current game data, it is sent to the user when
+  * The user joins the game
+  * The game is started
+
+<details open>
+<summary>Fields</summary>
+
+```json
+{
+    "event": "client/data",
+    "data": {
+        "guesses": [ // list of words that I have been played
+            {
+                "word": "FOLKS",
+                "played_at": "2023-06-19T19:16:36.715290087Z",
+                "status": [1,2,2,1,3]
+            }
+        ],
+        "active": true, // game status
+        "board": [ // sorted rank list of players, 1st players highest rank
+            "escalopa"
+        ]
+    },
+    "from": "" 
+}
+```
+</details>
 
 # Future Game Modes ✨
 
