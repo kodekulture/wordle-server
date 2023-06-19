@@ -57,8 +57,8 @@
 
 ```json
 {
-  "username": "username", // unique
-  "password": "password" // just put anything bro
+  "username": "username", 
+  "password": "password" 
 }
 ```
 </details>
@@ -84,8 +84,8 @@
 
 ```json
 {
-  "username": "username", // unique
-  "password": "password" // just put anything bro
+  "username": "username", 
+  "password": "password"
 }
 ```
 </details>
@@ -147,7 +147,7 @@
     "started_at": "2023-06-19T19:53:02.886447+03:00",
     "ended_at": "2023-06-19T19:51:58.802+03:00",
     "creator": "username",
-    "correct_word": "FOLKS", // Displayed only if the game has ended
+    "correct_word": "FOLKS",
     "id": "58dbe7f6-9d5c-4d48-8eac-73db92d4437d"
   },
   ...
@@ -208,8 +208,8 @@
 * Requests object struct
 ```json
 {
-  "event": "event", // event name
-  "data": "data", // message body (can be anything)
+  "event": "event_name",
+  "data": "object(can be anything)", 
 }
 ```
 
@@ -238,7 +238,7 @@
 
 ```json
 {
-  "data": "Hello World"
+  "data": "Hello World",
   "from": "username"
 }
 ```
@@ -265,7 +265,10 @@
 ### [WSE] client/play
 
 * When a player submits a word, other users are notified about the status of the leaderboard of this user.
-* Users receives a `Session` object to update leaderboard
+* The `status` is an array of 5 numbers, each number represents the status of the letter in the same position in the word.
+  * `3` => correct letter and position
+  * `2` => correct letter but wrong position
+  * `1` => wrong letter
 
 <details open>
 <summary>Fields</summary>
@@ -274,17 +277,14 @@
 {
     "event": "client/play",
     "data": {
-        "rank_offset": 0, // amount of players that this user has displaced in the leaderboard
-        "username": "escalopa", // username of the player
+        "rank_offset": 0,
+        "username": "escalopa",
         "guess_response": {
             "played_at": "2023-06-19T19:16:36.715290087Z",
-            "status": [1,2,2,1,3] // status of the word
-            // 3 => correct letter and position
-            // 2 => correct letter but wrong position
-            // 1 => wrong letter
+            "status": [1,2,2,1,3] 
         }
     },
-    "from": "escalopa" // username of the player
+    "from": "escalopa"
 }
 ```
 </details>
@@ -334,15 +334,15 @@
 {
     "event": "client/data",
     "data": {
-        "guesses": [ // list of words that I have been played
+        "guesses": [
             {
                 "word": "FOLKS",
                 "played_at": "2023-06-19T19:16:36.715290087Z",
                 "status": [1,2,2,1,3]
             }
         ],
-        "active": true, // game status
-        "board": [ // sorted rank list of players, 1st players highest rank
+        "active": true,
+        "board": [
             "escalopa"
         ]
     },
