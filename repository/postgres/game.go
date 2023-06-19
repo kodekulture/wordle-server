@@ -2,6 +2,8 @@ package postgres
 
 import (
 	"context"
+	"database/sql"
+	"encoding/json"
 	"time"
 
 	"github.com/google/uuid"
@@ -116,13 +118,13 @@ func (r *GameRepo) FinishGame(ctx context.Context, g *game.Game) error {
 			GameID:      gm.ID,
 			PlayerID:    int32(s.Player.ID),
 			PlayedWords: s.JSON(),
-			CorrectGuesses: pgtype.Int4{
-				Int32: int32(s.BestGuess().CorrectCount()),
-				Valid: len(s.Guesses) > 0,
+			BestGuess: pgtype.Text{
+				String: s.BestGuess().Word,
+				Valid:  s.BestGuess().Word != "",
 			},
-			CorrectGuessesTime: pgtype.Timestamptz{
+			BestGuessTime: pgtype.Timestamptz{
 				Time:  s.BestGuess().PlayedAt.Time,
-				Valid: len(s.Guesses) > 0,
+				Valid: !s.BestGuess().PlayedAt.Time.IsZero(),
 			},
 			Finished: pgtype.Timestamptz{
 				Time:  s.BestGuess().PlayedAt.Time,
@@ -134,19 +136,41 @@ func (r *GameRepo) FinishGame(ctx context.Context, g *game.Game) error {
 	return tx.Commit(ctx)
 }
 
-func (r *GameRepo) FetchGame(ctx context.Context, gameID uuid.UUID) (*game.Game, error) {
-	g, err := r.q.FetchGame(ctx, pgtype.UUID{Bytes: gameID, Valid: true})
+func (r *GameRepo) FetchGame(ctx context.Context, playerID int, gameID uuid.UUID) (*game.Game, error) {
+	// fetch game
+	pgid := pgtype.UUID{Bytes: gameID, Valid: true}
+	g, err := r.q.FetchGame(ctx, pgid)
 	if err != nil {
 		return nil, err
 	}
-	return &game.Game{
+	gm := &game.Game{
 		ID:          uuid.UUID(g.ID.Bytes),
 		Creator:     g.CreatorUsername,
 		CorrectWord: word.New(g.CorrectWord),
 		CreatedAt:   g.CreatedAt.Time,
 		StartedAt:   toNilTime(g.StartedAt),
 		EndedAt:     toNilTime(g.CreatedAt),
-	}, nil
+	}
+
+	// fetch players
+	players, err := r.q.GamePlayers(ctx, pgid)
+	if err != nil {
+		return nil, err
+	}
+
+	// fetch this player
+	thisPlayer, err := r.q.GamePlayer(ctx, pgen.GamePlayerParams{
+		GameID:   pgid,
+		PlayerID: int32(playerID),
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	// get session
+	setSessions(gm, players, thisPlayer)
+
+	return gm, nil
 }
 
 // GetGames implements repository.Game.
@@ -191,5 +215,41 @@ func toGame(g pgen.PlayerGamesRow) game.Game {
 		EndedAt:     toNilTime(g.EndedAt),
 		// Sessions: -- sessions are not in the database
 	}
+}
 
+func setSessions(gm *game.Game, allPlayers []pgen.GamePlayersRow, thisPlayer pgen.GamePlayerRow) {
+	rankBoard := game.RankBoard{
+		Positions: make(map[string]int, len(allPlayers)),
+		Ranks:     make([]*game.Session, len(allPlayers)),
+	}
+	sessions := make(map[string]*game.Session, len(allPlayers))
+	for _, s := range allPlayers {
+		var guesses []word.Word
+		if s.ID == thisPlayer.ID {
+			json.Unmarshal(thisPlayer.PlayedWords, &guesses)
+		} else {
+			wrd := word.Word{
+				Word: s.BestGuess.String,
+				PlayedAt: sql.NullTime{
+					Time:  s.BestGuessTime.Time,
+					Valid: s.BestGuessTime.Valid,
+				},
+			}
+			wrd.Check(gm.CorrectWord)
+			guesses = append(guesses, wrd)
+		}
+		sess := &game.Session{
+			Player: game.Player{
+				ID:       int(s.ID),
+				Username: s.Username,
+			},
+			Guesses: guesses,
+		}
+		sess.Resync()
+		rankBoard.Ranks[int(s.Rank.Int32)] = sess
+		rankBoard.Positions[s.Username] = int(s.Rank.Int32)
+		sessions[s.Username] = sess
+	}
+	gm.Sessions = sessions
+	gm.Leaderboard = rankBoard
 }

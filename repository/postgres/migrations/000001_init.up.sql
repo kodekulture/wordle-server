@@ -26,6 +26,8 @@ CREATE TABLE IF NOT EXISTS game_player (
   -- 
   -- time he finished the game -- when null, this user is still playing
   finished TIMESTAMPTZ,
+
+  rank INTEGER, -- the position of this player in the game
   PRIMARY KEY (game_id, player_id)
 );
 
