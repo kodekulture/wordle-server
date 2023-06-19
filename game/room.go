@@ -22,7 +22,6 @@ const (
 	CMessage Event = "client/message"
 
 	SPlay   Event = "server/play"
-	CResult Event = "client/result"
 	CPlay   Event = "client/play"
 	CFinish Event = "client/finish"
 
@@ -132,6 +131,7 @@ func NewRoom(game *Game, storer GameSaver) *Room {
 
 // start Process `SStart` event and broadcasts a `CStart` event to all players in the room.
 func (r *Room) start(m Payload) {
+	pconn := m.sender
 	// Check if the player is the creator of the game
 	if r.g.Creator != m.From {
 		m.sender.write(newPayload(CError, "Only the game's creator can start the game", ""))
@@ -153,6 +153,7 @@ func (r *Room) start(m Payload) {
 	}
 	r.active = true
 	r.sendAll(newPayload(CStart, "Game started!", ""))
+	r.sendAll(newPayload(CData, ToInitialData(ptr.ToObj(r.g), pconn.PName()), ""))
 }
 
 // message process `SMessage` event and broadcasts a `CMessage` event to all players in the room.
@@ -208,9 +209,6 @@ func (r *Room) play(m Payload) {
 		return
 	}
 
-	// Send the result to the player who submitted the message
-	m.sender.write(newPayload(CResult, w.Stats, ""))
-
 	// Send the result to all players in the room
 	result := PlayerGuessResponse{
 		Username:      m.sender.PName(),
@@ -239,7 +237,7 @@ func (r *Room) join(m Payload) {
 	}
 	// Send the player his current state in the game.
 	// On error, close the player connection since he will have inconsistent data with which he can't play the game.
-	err := pconn.write(newPayload(CData, r.g.Sessions[pconn.PName()].Guesses, ""))
+	err := pconn.write(newPayload(CData, ToInitialData(ptr.ToObj(r.g), pconn.PName()), ""))
 	if err != nil {
 		log.Printf("failed to send player data: %v", err)
 		err = pconn.close()

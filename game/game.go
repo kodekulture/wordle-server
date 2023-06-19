@@ -99,6 +99,11 @@ func (g *Game) Join(p Player) {
 	g.Sessions[p.Username] = &Session{Player: p}
 }
 
+// IsActive returns true if game has started, otherwise false
+func (g Game) IsActive() bool {
+	return g.StartedAt != nil
+}
+
 // HasEnded returns true if game has ended, otherwise false
 func (g *Game) HasEnded() bool {
 	return g.EndedAt != nil

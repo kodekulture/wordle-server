@@ -14,9 +14,9 @@ type Response struct {
 	StartedAt       *time.Time            `json:"started_at"`
 	EndedAt         *time.Time            `json:"ended_at"`
 	Creator         string                `json:"creator"`
-	CorrectWord     *string               `json:"correct_word,omitempty"` // returned only if game has ended
-	Guesses         []GuessResponse       `json:"guesses"`                // contains the guesses of the current player
-	GamePerformance []PlayerGuessResponse `json:"game_performance"`       // contains the best guesses of all players
+	CorrectWord     *string               `json:"correct_word,omitempty"`     // returned only if game has ended
+	Guesses         []GuessResponse       `json:"guesses,omitempty"`          // contains the guesses of the current player
+	GamePerformance []PlayerGuessResponse `json:"game_performance,omitempty"` // contains the best guesses of all players
 	ID              uuid.UUID             `json:"id"`
 }
 
@@ -37,6 +37,17 @@ type PlayerGuessResponse struct {
 	Rank          *int          `json:"rank,omitempty"`
 	Username      string        `json:"username,omitempty"`
 	GuessResponse GuessResponse `json:"guess_response,omitempty"`
+}
+
+// InitialData is the data sent to the client when a new connection is established
+// or when the game is started
+type InitialData struct {
+	Guessses []GuessResponse `json:"guesses,omitempty"`
+	Active   bool            `json:"active"`
+
+	// Rank is the leaderboard of the game, it is a sorted list of usernames of the players
+	// The first element is the player with the highest score
+	Rank *[]string `json:"board,omitempty"`
 }
 
 func ToResponse(g Game, username string) Response {
@@ -92,5 +103,34 @@ func ToGuess(w word.Word, showWord bool) GuessResponse {
 		Word:     guessed(),
 		PlayedAt: w.PlayedAt.Time,
 		Status:   w.Stats.Ints(),
+	}
+}
+
+// ToInitialData converts a game to initialData for a specific user
+// This function is called on game start and on new connection to the game
+func ToInitialData(g Game, username string) InitialData {
+	// leaderboard is a function that returns the leaderboard if the game is active
+	// otherwise it returns nil, since the data might not be actual if the game is not active due to user joining
+	leaderboard := func() *[]string {
+		if !g.IsActive() {
+			return nil
+		}
+		// copy the map, to prevent the original from being modified
+		m := make([]string, len(g.Leaderboard.Positions))
+		for i, v := range g.Leaderboard.Ranks {
+			m[i] = v.Player.Username
+		}
+		return &m
+	}
+
+	// convert the guesses to GuessResponse
+	guesses := make([]GuessResponse, 0, len(g.Sessions[username].Guesses))
+	for _, w := range g.Sessions[username].Guesses {
+		guesses = append(guesses, ToGuess(w, true))
+	}
+	return InitialData{
+		Guessses: guesses,
+		Active:   g.IsActive(),
+		Rank:     leaderboard(),
 	}
 }
