@@ -14,9 +14,9 @@ type Response struct {
 	StartedAt       *time.Time            `json:"started_at"`
 	EndedAt         *time.Time            `json:"ended_at"`
 	Creator         string                `json:"creator"`
-	CorrectWord     *string               `json:"correct_word,omitempty"` // returned only if game has ended
-	Guesses         []GuessResponse       `json:"guesses"`                // contains the guesses of the current player
-	GamePerformance []PlayerGuessResponse `json:"game_performance"`       // contains the best guesses of all players
+	CorrectWord     *string               `json:"correct_word,omitempty"`     // returned only if game has ended
+	Guesses         []GuessResponse       `json:"guesses,omitempty"`          // contains the guesses of the current player
+	GamePerformance []PlayerGuessResponse `json:"game_performance,omitempty"` // contains the best guesses of all players
 	ID              uuid.UUID             `json:"id"`
 }
 
