@@ -103,8 +103,8 @@ func shutdown(s *handler.Handler, done chan<- struct{}) {
 }
 
 var config struct {
-	Port        string `mapstructure:"PORT"`
-	PostgresURL string `mapstructure:"POSTGRES_URL"`
-	BadgerPath  string `mapstructure:"BADGER_PATH"`
-	PASETOKey   string `mapstructure:"PASETO_KEY"`
+	Port        string `env:"PORT"`
+	PostgresURL string `env:"POSTGRES_URL,required"`
+	BadgerPath  string `env:"BADGER_PATH"`
+	PASETOKey   string `env:"PASETO_KEY,required"`
 }
