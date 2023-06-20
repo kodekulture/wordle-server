@@ -19,8 +19,9 @@ migrate-down:
 sqlc:
 	sqlc generate -f ./sqlc.yaml
 
-docker-build:
+build:
 	docker build -t wordle-server:$TAG -f ./Dockerfile --target production .
+	docker image push dekuyo/wordle-server:$TAG
 
 run: 
 	rm -rf ./bin/main
