@@ -2,42 +2,16 @@ version: '3.8'
 
 services:
   app: 
-    container_name: "wordle-app"
-    image: wordle-server:1.0
+    image: dekuyo/wordle-server:1.0.0
     volumes:
       - ./badger_db:/badger_db
     ports:
-      - 9080:9080
+      - "9080:9080"
     environment:
-      - POSTGRES_URL=${POSTGRES_URL}
-      - PASETO_KEY=${PASETO_KEY}
-      - BADGER_PATH=${BADGER_PATH}
-      - PORT=${PORT}
-    healthcheck:
-      test: ["CMD", "curl", "http://localhost:${PORT}/health"]
-      interval: 10s
-      timeout: 30s
-      retries: 5
-    depends_on:
-          - db
-    
-  db:
-    container_name: "wordle-db" 
-    image: postgres:latest
-    restart: always
-    environment:
-      - POSTGRES_USERNAME=postgres
-      - POSTGRES_PASSWORD=postgres
-      - POSTGRES_DB=wordle
-    ports:
-      - "5432:5432"
-    volumes:
-        - db:/var/lib/postgresql/data
-    healthcheck:
-      test: ["CMD", "pg_isready", "-U", "postgres", "-d", "wordle"]
-      interval: 10s
-      timeout: 30s
-      retries: 5
+      - POSTGRES_URL=postgresql://postgres:postgres@db:5432/wordle?sslmode=disable
+      - PASETO_KEY=12345678901234567890123456789012
+      - BADGER_PATH=/badger_db
+      - PORT=9080
 
 volumes:
   db:
