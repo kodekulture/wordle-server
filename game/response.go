@@ -42,12 +42,9 @@ type PlayerGuessResponse struct {
 // InitialData is the data sent to the client when a new connection is established
 // or when the game is started
 type InitialData struct {
-	Guessses []GuessResponse `json:"guesses,omitempty"`
-	Active   bool            `json:"active"`
-
-	// Rank is the leaderboard of the game, it is a sorted list of usernames of the players
-	// The first element is the player with the highest score
-	Rank *[]string `json:"board,omitempty"`
+	Rank    *[]string       `json:"board,omitempty"`
+	Guesses []GuessResponse `json:"guesses,omitempty"`
+	Active  bool            `json:"active"`
 }
 
 func ToResponse(g Game, username string) Response {
@@ -129,8 +126,8 @@ func ToInitialData(g Game, username string) InitialData {
 		guesses = append(guesses, ToGuess(w, true))
 	}
 	return InitialData{
-		Guessses: guesses,
-		Active:   g.IsActive(),
-		Rank:     leaderboard(),
+		Guesses: guesses,
+		Active:  g.IsActive(),
+		Rank:    leaderboard(),
 	}
 }
