@@ -20,13 +20,17 @@ sqlc:
 	sqlc generate -f ./sqlc.yaml
 
 build:
-	docker build -t wordle-server:$TAG -f ./Dockerfile --target production .
-	docker image push dekuyo/wordle-server:$TAG
+	docker build -t dekuyo/wordle-server:$(TAG) -f ./Dockerfile --target production .
+	docker image push dekuyo/wordle-server:$(TAG)
 
 run: 
 	rm -rf ./bin/main
 	go build -o ./bin/main ./cmd/main.go
 	./bin/main
+
+deploy:
+	docker stack rm wordle 2>>/dev/null
+	docker stack deploy -c ./stack.yaml wordle
 
 test: 
 	go test ./... -json --cover | tparse -all
