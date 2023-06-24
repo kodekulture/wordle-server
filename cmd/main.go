@@ -15,11 +15,11 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/joho/godotenv"
 
-	"github.com/Chat-Map/wordle-server/handler"
-	"github.com/Chat-Map/wordle-server/handler/token"
-	"github.com/Chat-Map/wordle-server/repository/badgr"
-	"github.com/Chat-Map/wordle-server/repository/postgres"
-	"github.com/Chat-Map/wordle-server/service"
+	"github.com/kodekulture/wordle-server/handler"
+	"github.com/kodekulture/wordle-server/handler/token"
+	"github.com/kodekulture/wordle-server/repository/badgr"
+	"github.com/kodekulture/wordle-server/repository/postgres"
+	"github.com/kodekulture/wordle-server/service"
 )
 
 func readInConfig() error {

@@ -8,10 +8,10 @@ import (
 	"github.com/google/uuid"
 	"github.com/lordvidex/errs"
 
-	"github.com/Chat-Map/wordle-server/game"
-	"github.com/Chat-Map/wordle-server/game/word"
-	"github.com/Chat-Map/wordle-server/repository"
-	"github.com/Chat-Map/wordle-server/service/random"
+	"github.com/kodekulture/wordle-server/game"
+	"github.com/kodekulture/wordle-server/game/word"
+	"github.com/kodekulture/wordle-server/repository"
+	"github.com/kodekulture/wordle-server/service/random"
 )
 
 var (

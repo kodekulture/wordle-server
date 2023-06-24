@@ -4,8 +4,8 @@ import (
 	"context"
 	"testing"
 
-	"github.com/Chat-Map/wordle-server/game"
 	"github.com/google/uuid"
+	"github.com/kodekulture/wordle-server/game"
 	"github.com/stretchr/testify/require"
 )
 

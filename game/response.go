@@ -6,7 +6,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/lordvidex/x/ptr"
 
-	"github.com/Chat-Map/wordle-server/game/word"
+	"github.com/kodekulture/wordle-server/game/word"
 )
 
 type Response struct {

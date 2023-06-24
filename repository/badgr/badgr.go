@@ -4,9 +4,9 @@ package badgr
 import (
 	"encoding/json"
 
-	"github.com/Chat-Map/wordle-server/game"
 	"github.com/dgraph-io/badger"
 	"github.com/google/uuid"
+	"github.com/kodekulture/wordle-server/game"
 )
 
 type HubRepo struct {

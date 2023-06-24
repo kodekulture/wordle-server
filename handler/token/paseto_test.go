@@ -6,7 +6,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/Chat-Map/wordle-server/game"
+	"github.com/kodekulture/wordle-server/game"
 )
 
 func TestNew(t *testing.T) {

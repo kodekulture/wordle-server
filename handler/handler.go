@@ -15,9 +15,9 @@ import (
 	"github.com/lordvidex/x/req"
 	"github.com/lordvidex/x/resp"
 
-	"github.com/Chat-Map/wordle-server/game"
-	"github.com/Chat-Map/wordle-server/handler/token"
-	"github.com/Chat-Map/wordle-server/service"
+	"github.com/kodekulture/wordle-server/game"
+	"github.com/kodekulture/wordle-server/handler/token"
+	"github.com/kodekulture/wordle-server/service"
 )
 
 var (
