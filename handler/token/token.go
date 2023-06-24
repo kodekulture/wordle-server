@@ -6,7 +6,7 @@ import (
 
 	"github.com/lordvidex/x/auth"
 
-	"github.com/Chat-Map/wordle-server/game"
+	"github.com/kodekulture/wordle-server/game"
 )
 
 type Handler interface {

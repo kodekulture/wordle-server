@@ -8,11 +8,11 @@ import (
 	"github.com/lordvidex/x/auth"
 	"github.com/o1egl/paseto/v2"
 
-	"github.com/Chat-Map/wordle-server/game"
+	"github.com/kodekulture/wordle-server/game"
 )
 
 var (
-	defaultFooter = "Chat-Map"
+	defaultFooter = "kodekulture"
 )
 
 type Paseto struct {

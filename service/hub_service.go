@@ -3,8 +3,8 @@ package service
 import (
 	"sync"
 
-	"github.com/Chat-Map/wordle-server/game"
 	"github.com/google/uuid"
+	"github.com/kodekulture/wordle-server/game"
 )
 
 type hub struct {

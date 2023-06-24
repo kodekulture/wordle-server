@@ -5,9 +5,9 @@ import (
 
 	"github.com/lordvidex/errs"
 
-	"github.com/Chat-Map/wordle-server/game"
-	"github.com/Chat-Map/wordle-server/repository"
-	"github.com/Chat-Map/wordle-server/repository/postgres/pgen"
+	"github.com/kodekulture/wordle-server/game"
+	"github.com/kodekulture/wordle-server/repository"
+	"github.com/kodekulture/wordle-server/repository/postgres/pgen"
 )
 
 var _ repository.Player = new(PlayerRepo)

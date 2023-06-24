@@ -6,7 +6,7 @@ import (
 
 	"github.com/google/uuid"
 
-	"github.com/Chat-Map/wordle-server/game"
+	"github.com/kodekulture/wordle-server/game"
 )
 
 type Player interface {

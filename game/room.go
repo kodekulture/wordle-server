@@ -12,7 +12,7 @@ import (
 	"github.com/gorilla/websocket"
 	"github.com/lordvidex/x/ptr"
 
-	"github.com/Chat-Map/wordle-server/game/word"
+	"github.com/kodekulture/wordle-server/game/word"
 )
 
 type Event string

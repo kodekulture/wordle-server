@@ -7,10 +7,10 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/Chat-Map/wordle-server/game"
-	"github.com/Chat-Map/wordle-server/game/word"
 	"github.com/brianvoe/gofakeit/v6"
 	"github.com/google/uuid"
+	"github.com/kodekulture/wordle-server/game"
+	"github.com/kodekulture/wordle-server/game/word"
 	"github.com/lordvidex/x/ptr"
 )
 

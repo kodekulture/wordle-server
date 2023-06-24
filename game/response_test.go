@@ -12,7 +12,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/Chat-Map/wordle-server/game/word"
+	"github.com/kodekulture/wordle-server/game/word"
 )
 
 func sampleGame() Game {

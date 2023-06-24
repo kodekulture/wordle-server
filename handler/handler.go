@@ -6,6 +6,7 @@ import (
 	"net/http"
 
 	"github.com/go-chi/chi/v5"
+	"github.com/go-chi/chi/v5/middleware"
 	"github.com/google/uuid"
 	"github.com/gorilla/websocket"
 	"github.com/lordvidex/errs"
@@ -14,9 +15,9 @@ import (
 	"github.com/lordvidex/x/req"
 	"github.com/lordvidex/x/resp"
 
-	"github.com/Chat-Map/wordle-server/game"
-	"github.com/Chat-Map/wordle-server/handler/token"
-	"github.com/Chat-Map/wordle-server/service"
+	"github.com/kodekulture/wordle-server/game"
+	"github.com/kodekulture/wordle-server/handler/token"
+	"github.com/kodekulture/wordle-server/service"
 )
 
 var (
@@ -56,6 +57,7 @@ func (h *Handler) Start(port string) error {
 
 func (h *Handler) setup() {
 	r := h.router
+	r.Use(middleware.Logger)
 	// Public routes
 	r.Group(func(r chi.Router) {
 		r.Get("/health", h.health)

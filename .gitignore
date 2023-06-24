@@ -4,3 +4,4 @@
 *.cov
 badger_db
 bin
+.history/

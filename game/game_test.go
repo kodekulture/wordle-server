@@ -7,7 +7,7 @@ import (
 	"github.com/lordvidex/x/ptr"
 	"github.com/stretchr/testify/assert"
 
-	"github.com/Chat-Map/wordle-server/game/word"
+	"github.com/kodekulture/wordle-server/game/word"
 )
 
 var words = []word.Word{
