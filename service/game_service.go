@@ -6,9 +6,9 @@ import (
 	"github.com/google/uuid"
 	"github.com/lordvidex/errs"
 
-	"github.com/Chat-Map/wordle-server/game"
-	"github.com/Chat-Map/wordle-server/repository"
-	"github.com/Chat-Map/wordle-server/service/hasher"
+	"github.com/kodekulture/wordle-server/game"
+	"github.com/kodekulture/wordle-server/repository"
+	"github.com/kodekulture/wordle-server/service/hasher"
 )
 
 type gameService struct {

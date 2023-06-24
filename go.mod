@@ -1,4 +1,4 @@
-module github.com/Chat-Map/wordle-server
+module github.com/kodekulture/wordle-server
 
 go 1.20
 

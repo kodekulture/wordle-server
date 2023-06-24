@@ -6,8 +6,8 @@ import (
 	"encoding/hex"
 	"time"
 
-	"github.com/Chat-Map/wordle-server/game"
 	"github.com/google/uuid"
+	"github.com/kodekulture/wordle-server/game"
 )
 
 var (
