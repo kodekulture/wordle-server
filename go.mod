@@ -14,6 +14,7 @@ require (
 	github.com/lordvidex/errs v1.1.0
 	github.com/lordvidex/x v0.0.0-20230612000420-34dcc429a780
 	github.com/o1egl/paseto/v2 v2.1.1
+	github.com/rs/zerolog v1.29.1
 	golang.org/x/crypto v0.9.0
 )
 
@@ -26,6 +27,8 @@ require (
 	github.com/golang/glog v1.1.1 // indirect
 	github.com/golang/protobuf v1.5.3 // indirect
 	github.com/kr/pretty v0.3.1 // indirect
+	github.com/mattn/go-colorable v0.1.12 // indirect
+	github.com/mattn/go-isatty v0.0.14 // indirect
 	github.com/pkg/errors v0.9.1 // indirect
 	github.com/pmezard/go-difflib v1.0.0 // indirect
 	github.com/rogpeppe/go-internal v1.10.0 // indirect

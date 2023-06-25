@@ -1,8 +1,13 @@
 package handler
 
 import (
+	"context"
 	"fmt"
 	"testing"
+
+	"github.com/stretchr/testify/assert"
+
+	"github.com/kodekulture/wordle-server/game"
 )
 
 func TestDecodeHeader(t *testing.T) {
@@ -45,6 +50,42 @@ func TestDecodeHeader(t *testing.T) {
 			if got != tt.want {
 				t.Errorf("decodeHeader() = %v, want %v", got, tt.want)
 			}
+		})
+	}
+}
+
+func TestPlayer(t *testing.T) {
+	player := &game.Player{
+		Username: "guy",
+		Password: "free-guy",
+		ID:       123,
+	}
+	testcases := []struct {
+		ctx      context.Context
+		expected *game.Player
+		name     string
+	}{
+		{
+			name:     "empty context",
+			ctx:      context.Background(),
+			expected: nil,
+		},
+		{
+			name:     "context with no player",
+			ctx:      context.WithValue(context.Background(), playerKey, "not a player"),
+			expected: nil,
+		},
+		{
+			name:     "context with player",
+			ctx:      context.WithValue(context.Background(), playerKey, player),
+			expected: player,
+		},
+	}
+
+	for _, tt := range testcases {
+		t.Run(tt.name, func(t *testing.T) {
+			got := Player(tt.ctx)
+			assert.Equal(t, tt.expected, got)
 		})
 	}
 }

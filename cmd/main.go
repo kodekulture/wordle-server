@@ -14,6 +14,8 @@ import (
 	"github.com/dgraph-io/badger"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/joho/godotenv"
+	"github.com/rs/zerolog"
+	zlog "github.com/rs/zerolog/log"
 
 	"github.com/kodekulture/wordle-server/handler"
 	"github.com/kodekulture/wordle-server/handler/token"
@@ -32,6 +34,9 @@ func readInConfig() error {
 
 func main() {
 	done := make(chan struct{})
+
+	zlog.Logger = zlog.Output(zerolog.ConsoleWriter{Out: os.Stderr})
+
 	appCtx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
