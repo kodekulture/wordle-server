@@ -2,7 +2,6 @@ package handler
 
 import (
 	"context"
-	"log"
 	"net/http"
 
 	"github.com/go-chi/chi/v5"
@@ -14,6 +13,7 @@ import (
 	"github.com/lordvidex/x/ptr"
 	"github.com/lordvidex/x/req"
 	"github.com/lordvidex/x/resp"
+	"github.com/rs/zerolog/log"
 
 	"github.com/kodekulture/wordle-server/game"
 	"github.com/kodekulture/wordle-server/handler/token"
@@ -267,7 +267,7 @@ func (h *Handler) live(w http.ResponseWriter, r *http.Request) {
 	// Upgrade the HTTP connection to a websocket connection
 	conn, err := upgrader.Upgrade(w, r, nil)
 	if err != nil {
-		log.Printf("error upgrading connection: %v", err)
+		log.Err(err).Msg("error upgrading connection: %v")
 		return
 	}
 

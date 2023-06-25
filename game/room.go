@@ -4,13 +4,13 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"log"
 	"strings"
 	"sync"
 	"time"
 
 	"github.com/gorilla/websocket"
 	"github.com/lordvidex/x/ptr"
+	"github.com/rs/zerolog/log"
 
 	"github.com/kodekulture/wordle-server/game/word"
 )
@@ -239,10 +239,10 @@ func (r *Room) join(m Payload) {
 	// On error, close the player connection since he will have inconsistent data with which he can't play the game.
 	err := pconn.write(newPayload(CData, ToInitialData(ptr.ToObj(r.g), pconn.PName()), ""))
 	if err != nil {
-		log.Printf("failed to send player data: %v", err)
+		log.Err(err).Caller().Msg("failed to send player data")
 		err = pconn.close()
 		if err != nil {
-			log.Printf("failed to close player connection: %v", err)
+			log.Err(err).Caller().Msg("failed to close player connection")
 		}
 		return
 	}
@@ -260,7 +260,7 @@ func (r *Room) leave(m Payload) {
 	case []*PlayerConn:
 		players = m.Data.([]*PlayerConn)
 	default:
-		log.Printf("Unkown payload type provided for leave: %#v", m.Data)
+		log.Info().Msgf("Unkown payload type provided for leave: %#v", m.Data)
 		return
 	}
 	// Process the player list and close their connections
@@ -311,7 +311,7 @@ func (r *Room) close() {
 	if r.saver != nil {
 		err := r.saver.FinishGame(context.Background(), r.g)
 		if err != nil {
-			log.Printf("failed to store game: %v", err)
+			log.Err(err).Caller().Msg("failed to store game")
 		}
 	}
 }
@@ -455,7 +455,7 @@ func (p *PlayerConn) write(payload Payload) error {
 	defer p.writeMu.Unlock()
 	err := p.conn.WriteJSON(payload)
 	if err != nil {
-		log.Printf("Error writing to player (%s): %s", p.PName(), err)
+		log.Err(err).Caller().Msgf("Error writing to player (%s)", p.PName())
 	}
 	return err
 }

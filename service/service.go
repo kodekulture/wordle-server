@@ -3,10 +3,11 @@ package service
 import (
 	"context"
 	"fmt"
-	"log"
 
 	"github.com/google/uuid"
 	"github.com/lordvidex/errs"
+
+	"github.com/rs/zerolog/log"
 
 	"github.com/kodekulture/wordle-server/game"
 	"github.com/kodekulture/wordle-server/game/word"
@@ -30,10 +31,10 @@ type Service struct {
 // NewRoom creates a new room and returns the id of the game that is currently running in this room
 func (s *Service) NewRoom(username string) string {
 	wrd := s.wordGen.Generate(word.Length)
-	log.Println(wrd) // TODO: remove this on production, for now leave it for debugging
+	log.Debug().Msg(wrd) // TODO: remove this on production, for now leave it for debugging
 	g := game.New(username, word.New(wrd))
 	room := game.NewRoom(g, s)
-	s.hub.SetRoom(g.ID, room)
+	s.SetRoom(g.ID, room)
 	return room.ID()
 }
 
@@ -71,18 +72,18 @@ func (s *Service) dumpHub(ctx context.Context, hub map[uuid.UUID]*game.Room) err
 func (s *Service) drop(ctx context.Context) error {
 	err := s.cr.Drop()
 	if err != nil {
-		log.Printf("error dropping hub: %v", err)
+		log.Err(err).Caller().Msg("error dropping hub")
 		return err
 	}
 	return nil
 }
 
 func (s *Service) Stop(ctx context.Context) {
-	s.hub.mu.Lock()
-	defer s.hub.mu.Unlock()
-	err := s.dumpHub(ctx, s.hub.rooms)
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	err := s.dumpHub(ctx, s.rooms)
 	if err != nil {
-		log.Printf("failed to dump hub: %s", err)
+		log.Err(err).Caller().Msg("failed to dump hub")
 	}
 }
 

@@ -7,7 +7,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
-	"github.com/Chat-Map/wordle-server/game"
+	"github.com/kodekulture/wordle-server/game"
 )
 
 func TestDecodeHeader(t *testing.T) {
