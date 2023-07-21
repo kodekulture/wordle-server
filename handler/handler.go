@@ -64,6 +64,7 @@ func (h *Handler) setup() {
 		r.Post("/login", h.login)
 		r.Post("/register", h.register)
 		r.Get("/live", h.live)
+		r.Get("/", h.health)
 	})
 
 	// Private routes
