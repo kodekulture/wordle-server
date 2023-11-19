@@ -2,25 +2,29 @@ version: '3.8'
 
 services:
   app: 
-    image: dekuyo/wordle-server:latest
     container_name: "wordle-app"
     volumes:
+      - .:/wordle
       - ./badger_db:/badger_db
+    build: 
+      context: .
+      dockerfile: Dockerfile
+      target: development
     ports:
-      - "9000:9000"
+      - ${PORT}:${PORT}
     environment:
-      - POSTGRES_URL=postgresql://postgres:postgres@db:5432/wordle?sslmode=disable
-      - PORT=9000
-      - PASETO_KEY=12345678901234567890123456789012
-      - BADGER_PATH=./badger_db
+      - POSTGRES_URL=${POSTGRES_URL}
+      - PASETO_KEY=${PASETO_KEY}
+      - BADGER_PATH=${BADGER_PATH}
+      - PORT=${PORT}
     healthcheck:
-      test: ["CMD", "curl", "http://localhost:9000/health"]
+      test: ["CMD", "curl", "http://localhost:${PORT}/health"]
       interval: 10s
       timeout: 30s
       retries: 5
     depends_on:
-      db: 
-        condition: service_healthy
+          - db
+
     
   db:
     container_name: "wordle-db" 
@@ -40,15 +44,5 @@ services:
       timeout: 30s
       retries: 5
 
-  db-migrate:
-    image: dekuyo/migrate-go:latest
-    volumes:
-      - ./repository/postgres/migrations:/migrations
-    command: [ "-dir", "/migrations", "-dsn", "postgres://postgres:postgres@db:5432/wordle?sslmode=disable" ]  
-    depends_on:
-      db: 
-        condition: service_healthy
-      
-    
 volumes:
   db:

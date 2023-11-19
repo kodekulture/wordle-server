@@ -2,6 +2,7 @@ package word
 
 import (
 	"database/sql"
+	"strings"
 )
 
 // LetterStatus is an enum type for the Status of a letter in a word guess
@@ -43,7 +44,7 @@ type Word struct {
 
 func New(word string) Word {
 	stats := make([]LetterStatus, len(word))
-	return Word{word, sql.NullTime{}, stats}
+	return Word{strings.ToUpper(word), sql.NullTime{}, stats}
 }
 
 func (w Word) Runes() []rune {

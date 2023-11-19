@@ -4,16 +4,16 @@ go 1.20
 
 require (
 	github.com/brianvoe/gofakeit/v6 v6.22.0
-	github.com/caarlos0/env/v8 v8.0.0
 	github.com/dgraph-io/badger v1.6.2
+	github.com/escalopa/goconfig v0.0.0-20230116193509-b087d386fa9f
 	github.com/go-chi/chi/v5 v5.0.8
 	github.com/google/uuid v1.3.0
 	github.com/gorilla/websocket v1.5.0
 	github.com/jackc/pgx/v5 v5.3.1
-	github.com/joho/godotenv v1.5.1
 	github.com/lordvidex/errs v1.1.0
 	github.com/lordvidex/x v0.0.0-20230612000420-34dcc429a780
 	github.com/o1egl/paseto/v2 v2.1.1
+	github.com/rs/cors v1.10.1
 	github.com/rs/zerolog v1.29.1
 	golang.org/x/crypto v0.9.0
 )

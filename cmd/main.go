@@ -10,10 +10,9 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/caarlos0/env/v8"
 	"github.com/dgraph-io/badger"
+	"github.com/escalopa/goconfig"
 	"github.com/jackc/pgx/v5/pgxpool"
-	"github.com/joho/godotenv"
 	"github.com/rs/zerolog"
 	zlog "github.com/rs/zerolog/log"
 
@@ -24,13 +23,12 @@ import (
 	"github.com/kodekulture/wordle-server/service"
 )
 
-func readInConfig() error {
-	err := godotenv.Load()
-	if err != nil {
-		log.Print("error loading environment files.. continuing..")
-	}
-	return env.Parse(&config)
-}
+var config = goconfig.New()
+
+const (
+	accessTokenTTL  = 24 * time.Hour       // 1 day
+	refreshTokenTTL = 365 * 24 * time.Hour // 1 year
+)
 
 func main() {
 	done := make(chan struct{})
@@ -40,10 +38,6 @@ func main() {
 	appCtx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	err := readInConfig()
-	if err != nil {
-		log.Fatal(err)
-	}
 	db, err := getConnection(appCtx)
 	if err != nil {
 		log.Fatal(err)
@@ -56,21 +50,21 @@ func main() {
 	if err != nil {
 		log.Fatal(err)
 	}
-	tokener, err := token.New([]byte(config.PASETOKey), "", time.Hour)
+	tokener, err := token.New([]byte(config.Get("PASETO_KEY")), "", accessTokenTTL)
 	if err != nil {
 		log.Fatal(err)
 	}
 	h := handler.New(srv, tokener)
 	go shutdown(h, done)
-	log.Printf("server started on port: %s", config.Port)
-	if err = h.Start(config.Port); err != nil && !errors.Is(err, http.ErrServerClosed) {
+	log.Printf("server started on port: %s", config.Get("PORT"))
+	if err = h.Start(config.Get("PORT")); err != nil && !errors.Is(err, http.ErrServerClosed) {
 		log.Fatal(err)
 	}
 	<-done
 }
 
 func getConnection(ctx context.Context) (*pgxpool.Pool, error) {
-	conn, err := pgxpool.New(ctx, config.PostgresURL)
+	conn, err := pgxpool.New(ctx, config.Get("POSTGRES_URL"))
 	if err != nil {
 		return nil, err
 	}
@@ -84,7 +78,7 @@ func getConnection(ctx context.Context) (*pgxpool.Pool, error) {
 func getCacher() (*badger.DB, error) {
 	// Open the Badger database located in the /tmp/badger directory.
 	// It will be created if it doesn't exist.
-	db, err := badger.Open(badger.DefaultOptions(config.BadgerPath))
+	db, err := badger.Open(badger.DefaultOptions(config.Get("BADGER_PATH")))
 	if err != nil {
 		return nil, err
 	}
@@ -105,11 +99,4 @@ func shutdown(s *handler.Handler, done chan<- struct{}) {
 	}
 	log.Println("shutdown complete")
 	close(done)
-}
-
-var config struct {
-	Port        string `env:"PORT"`
-	PostgresURL string `env:"POSTGRES_URL,required"`
-	BadgerPath  string `env:"BADGER_PATH"`
-	PASETOKey   string `env:"PASETO_KEY,required"`
 }
