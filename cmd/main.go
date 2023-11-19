@@ -25,6 +25,11 @@ import (
 
 var config = goconfig.New()
 
+const (
+	accessTokenTTL  = 24 * time.Hour       // 1 day
+	refreshTokenTTL = 365 * 24 * time.Hour // 1 year
+)
+
 func main() {
 	done := make(chan struct{})
 
@@ -45,7 +50,7 @@ func main() {
 	if err != nil {
 		log.Fatal(err)
 	}
-	tokener, err := token.New([]byte(config.Get("PASETO_KEY")), "", time.Hour)
+	tokener, err := token.New([]byte(config.Get("PASETO_KEY")), "", accessTokenTTL)
 	if err != nil {
 		log.Fatal(err)
 	}

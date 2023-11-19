@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"regexp"
 	"strings"
 	"sync"
 	"time"
@@ -166,6 +167,8 @@ func (r *Room) message(m Payload) {
 	r.sendAll(newPayload(CMessage, text, m.From))
 }
 
+var letterRegexp = regexp.MustCompile("^[a-zA-Z]+$")
+
 // play Process `SPlay` event and broadcasts a `CPlay` event to all players in the room
 // and `CResult` event to the player who submitted the message.
 func (r *Room) play(m Payload) {
@@ -199,6 +202,11 @@ func (r *Room) play(m Payload) {
 	// Check given word length
 	if len(text) != word.Length {
 		m.sender.write(newPayload(CError, "Invalid message string length", ""))
+		return
+	}
+	// Check if the given word is valid
+	if !letterRegexp.MatchString(text) {
+		m.sender.write(newPayload(CError, "Invalid message characters", ""))
 		return
 	}
 	// Process the given word and send error if the word is invalid

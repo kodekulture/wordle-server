@@ -13,6 +13,7 @@ import (
 	"github.com/lordvidex/x/ptr"
 	"github.com/lordvidex/x/req"
 	"github.com/lordvidex/x/resp"
+	"github.com/rs/cors"
 	"github.com/rs/zerolog/log"
 
 	"github.com/kodekulture/wordle-server/game"
@@ -57,7 +58,19 @@ func (h *Handler) Start(port string) error {
 
 func (h *Handler) setup() {
 	r := h.router
+
+	cors := cors.New(cors.Options{
+		AllowedOrigins: []string{"http://localhost:3000"},
+		AllowedMethods: []string{"GET", "POST", "PUT", "DELETE", "OPTIONS"},
+		AllowedHeaders: []string{"Accept", "Authorization", "Content-Type", "X-CSRF-Token"},
+		ExposedHeaders: []string{"Link"},
+		MaxAge:         300,
+	})
+
+	// Middlewares
+	r.Use(cors.Handler)
 	r.Use(middleware.Logger)
+
 	// Public routes
 	r.Group(func(r chi.Router) {
 		r.Get("/health", h.health)
@@ -71,6 +84,7 @@ func (h *Handler) setup() {
 	r.Group(func(r chi.Router) {
 		r.Use(h.authMiddleware(AuthDecodeTypeFetch))
 
+		r.Get("/me", h.me)
 		r.Post("/room", h.createRoom)
 		r.Get("/join/room/{id}", h.joinRoom)
 		r.Get("/room", h.rooms)
@@ -90,7 +104,8 @@ type loginParams struct {
 }
 
 type loginResponse struct {
-	Token string `json:"token"`
+	AccessToken string `json:"access_token"`
+	// RefreshToken string `json:"refresh_token"`
 }
 
 func (h *Handler) login(w http.ResponseWriter, r *http.Request) {
@@ -105,7 +120,6 @@ func (h *Handler) login(w http.ResponseWriter, r *http.Request) {
 	var (
 		player *game.Player
 		err    error
-		token  auth.Token
 	)
 	if player, err = h.srv.GetPlayer(r.Context(), payload.Username); err != nil {
 		resp.Error(w, err)
@@ -116,12 +130,16 @@ func (h *Handler) login(w http.ResponseWriter, r *http.Request) {
 		resp.Error(w, err)
 		return
 	}
-	// generate token
-	if token, err = h.token.Generate(r.Context(), *player); err != nil {
+	// generate tokens
+	var (
+		accessToken auth.Token
+		// refreshToken auth.Token
+	)
+	if accessToken, err = h.token.Generate(r.Context(), *player); err != nil {
 		resp.Error(w, err)
 		return
 	}
-	result := loginResponse{Token: string(token)}
+	result := loginResponse{AccessToken: string(accessToken) /* RefreshToken: string(refreshToken) */}
 	resp.JSON(w, result)
 
 }
@@ -139,14 +157,31 @@ func (h *Handler) register(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	var (
-		token auth.Token
-		err   error
+		accessToken auth.Token
+		// refreshToken auth.Token
+		err error
 	)
-	if token, err = h.token.Generate(ctx, player); err != nil {
+	if accessToken, err = h.token.Generate(ctx, player); err != nil {
 		resp.Error(w, err)
 		return
 	}
-	result := loginResponse{Token: string(token)}
+	result := loginResponse{AccessToken: string(accessToken) /*RefreshToken: string(refreshToken)*/}
+	resp.JSON(w, result)
+}
+
+type meResponse struct {
+	Username string `json:"username"`
+}
+
+func (h *Handler) me(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	player := Player(ctx)
+	if player == nil {
+		resp.Error(w, ErrUnauthenticated)
+		return
+	}
+
+	result := meResponse{Username: player.Username}
 	resp.JSON(w, result)
 }
 
