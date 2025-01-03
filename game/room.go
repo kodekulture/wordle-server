@@ -219,9 +219,9 @@ func (r *Room) play(m Payload) {
 
 	// Send the result to all players in the room
 	result := PlayerGuessResponse{
-		Username:      m.sender.PName(),
-		GuessResponse: ToGuess(w, false),
-		RankOffset:    ptr.Obj(dRank),
+		Result:      ToGuess(w, false),
+		RankOffset:  ptr.Obj(dRank),
+		Leaderboard: ToLeaderboard(r.g.Leaderboard),
 	}
 	r.sendAll(newPayload(CPlay, result, m.From))
 

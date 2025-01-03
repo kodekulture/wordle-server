@@ -246,6 +246,7 @@ func setSessions(gm *game.Game, allPlayers []pgen.GamePlayersRow, thisPlayer pge
 			Guesses: guesses,
 		}
 		sess.Resync()
+		sess.SetWordsCount(int(s.TotalWords))
 		rankBoard.Ranks[int(s.Rank.Int32)] = sess
 		rankBoard.Positions[s.Username] = int(s.Rank.Int32)
 		sessions[s.Username] = sess

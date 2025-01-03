@@ -160,8 +160,15 @@ func (g *Game) Players() []string {
 // Session holds the state of a player's game session.
 type Session struct {
 	bestGuess *word.Word
-	Player    Player
-	Guesses   []word.Word
+	// the number of words this player has guessed for finished games. It is zero when guesses is empty
+	wordsCount int
+	Player     Player
+	Guesses    []word.Word
+}
+
+// SetWordsCount ...
+func (s *Session) SetWordsCount(x int) {
+	s.wordsCount = x
 }
 
 // Resync loops over the player's guesses and updates the best guess
@@ -195,6 +202,13 @@ func (s *Session) JSON() []byte {
 // BestGuess returns the best guess made by the user
 func (s *Session) BestGuess() word.Word {
 	return ptr.ToObj(s.bestGuess)
+}
+
+func (s *Session) WordsCount() int {
+	if s.wordsCount == 0 {
+		return len(s.Guesses)
+	}
+	return s.wordsCount
 }
 
 func (s *Session) GreaterThan(other *Session) bool {

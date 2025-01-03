@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
+	"sync"
 	"time"
 
 	"github.com/google/uuid"
@@ -23,12 +24,13 @@ type value struct {
 }
 
 type RandomGen struct {
-	s map[string]value
+	mu *sync.RWMutex
+	s  map[string]value
 }
 
 // New returns a new RandomGen
 func New(ctx context.Context) RandomGen {
-	r := RandomGen{s: make(map[string]value)}
+	r := RandomGen{s: make(map[string]value), mu: new(sync.RWMutex)}
 	go r.cleanup(ctx)
 	return r
 }
@@ -39,6 +41,10 @@ func (rg RandomGen) Store(player game.Player, gameID uuid.UUID) string {
 	data := player.Username + salt + gameID.String()
 	hash256.Write([]byte(data))
 	token := hex.EncodeToString(hash256.Sum(nil))
+
+	rg.mu.Lock()
+	defer rg.mu.Unlock()
+
 	// if the user already issued the token
 	if _, ok := rg.s[token]; ok {
 		return token
@@ -53,6 +59,8 @@ func (rg RandomGen) Store(player game.Player, gameID uuid.UUID) string {
 
 // Get returns the username and gameID associated with the token
 func (r RandomGen) Get(token string) (game.Player, uuid.UUID, bool) {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
 	v, ok := r.s[token]
 	if !ok {
 		return game.Player{}, uuid.Nil, false
@@ -71,11 +79,13 @@ func (r RandomGen) cleanup(ctx context.Context) {
 			return
 		case <-ticker.C:
 			now := time.Now()
+			r.mu.Lock()
 			for k, v := range r.s {
 				if now.Sub(v.createdAt) > valueMaxLife {
 					delete(r.s, k)
 				}
 			}
+			r.mu.Unlock()
 		}
 	}
 }
