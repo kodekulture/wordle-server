@@ -51,9 +51,8 @@ type PlayerSummaryResponse struct {
 // InitialData is the data sent to the client when a new connection is established
 // or when the game is started
 type InitialData struct {
-	Leaderboard LeaderboardResponse `json:"leaderboard"`
-	Guesses     []GuessResponse     `json:"guesses,omitempty"`
-	Active      bool                `json:"active"`
+	Response
+	Active bool `json:"active"`
 }
 
 func ToResponse(g Game, username string) Response {
@@ -125,14 +124,8 @@ func ToLeaderboard(l RankBoard) LeaderboardResponse {
 // ToInitialData converts a game to initialData for a specific user
 // This function is called on game start and on new connection to the game
 func ToInitialData(g Game, username string) InitialData {
-	// convert the guesses to GuessResponse
-	guesses := make([]GuessResponse, 0, len(g.Sessions[username].Guesses))
-	for _, w := range g.Sessions[username].Guesses {
-		guesses = append(guesses, ToGuess(w, true))
-	}
 	return InitialData{
-		Guesses:     guesses,
-		Active:      g.IsActive(),
-		Leaderboard: ToLeaderboard(g.Leaderboard),
+		Response: ToResponse(g, username),
+		Active:   g.IsActive(),
 	}
 }

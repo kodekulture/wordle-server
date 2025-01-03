@@ -343,6 +343,10 @@
 {
     "event": "client/data",
     "data": {
+        "created_at": "2023-06-19T19:16:36.715290087Z",
+        "started_at": "2023-06-19T19:16:36.715290087Z"
+        "creator": "someone",
+        "id": "...",
         "guesses": [
             {
                 "word": "FOLKS",
