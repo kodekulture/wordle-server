@@ -205,8 +205,8 @@ func (s *Session) BestGuess() word.Word {
 }
 
 func (s *Session) WordsCount() int {
-	if s.wordsCount == 0 {
-		return len(s.Guesses)
+	if v := len(s.Guesses); v != 0 {
+		return v
 	}
 	return s.wordsCount
 }
