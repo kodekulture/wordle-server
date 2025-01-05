@@ -255,7 +255,7 @@ func (r *Room) join(m Payload) {
 		return
 	}
 	r.players[pconn.PName()] = pconn
-	r.sendAll(newPayload(CJoin, fmt.Sprintf("%s has joined", pconn.PName()), ""))
+	r.sendAll(newPayload(CJoin, fmt.Sprintf("%s has joined", pconn.PName()), pconn.PName()))
 }
 
 // leave process `SLeave` and `SKickout` events and broadcasts a `CLeave` event to all players in the room.

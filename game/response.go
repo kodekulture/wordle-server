@@ -1,6 +1,10 @@
 package game
 
 import (
+	"iter"
+	"maps"
+	"slices"
+	"sort"
 	"time"
 
 	"github.com/google/uuid"
@@ -55,6 +59,24 @@ type InitialData struct {
 	Active bool `json:"active"`
 }
 
+func sorted[T any](x iter.Seq[T], fn func(a, b T) bool) iter.Seq[T] {
+	vals := make([]T, 0)
+	for v := range x {
+		vals = append(vals, v)
+	}
+	sort.Slice(vals, func(i, j int) bool {
+		return fn(vals[i], vals[j])
+	})
+
+	return func(yield func(T) bool) {
+		for _, v := range vals {
+			if !yield(v) {
+				return
+			}
+		}
+	}
+}
+
 func ToResponse(g Game, username string) Response {
 	setWord := func(w string) *string {
 		if g.EndedAt == nil {
@@ -63,11 +85,20 @@ func ToResponse(g Game, username string) Response {
 		return ptr.String(w)
 	}
 	perf := make([]PlayerSummaryResponse, 0, len(g.Sessions))
-	for name, s := range g.Sessions {
+
+	var it iter.Seq[*Session]
+	if g.IsActive() {
+		it = slices.Values(g.Leaderboard.Ranks)
+	} else {
+		//it = maps.Values(g.Sessions)
+		it = sorted(maps.Values(g.Sessions), func(i, j *Session) bool { return i.Player.Username < j.Player.Username })
+	}
+
+	for s := range it {
 		perf = append(perf, PlayerSummaryResponse{
-			Username:    name,
+			Username:    s.Player.Username,
 			Best:        ToGuess(s.BestGuess(), false),
-			Rank:        g.Leaderboard.Positions[name],
+			Rank:        g.Leaderboard.Positions[s.Player.Username],
 			WordsPlayed: s.WordsCount(),
 		})
 	}

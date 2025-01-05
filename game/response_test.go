@@ -189,9 +189,16 @@ func TestToInitialData(t *testing.T) {
 				username: "test",
 			},
 			want: InitialData{
-				Active:      false,
-				Guesses:     []GuessResponse{},
-				Leaderboard: LeaderboardResponse{},
+				Response: Response{
+					Guesses: []GuessResponse{},
+					GamePerformance: LeaderboardResponse{
+						{
+							Best:     GuessResponse{Status: []int{}},
+							Username: "test",
+						},
+					},
+				},
+				Active: false,
 			},
 		},
 		{
@@ -202,13 +209,15 @@ func TestToInitialData(t *testing.T) {
 			},
 			want: InitialData{
 				Active: true,
-				Guesses: []GuessResponse{
-					{Word: ptr.String(words[2].String()), Status: words[2].Stats.Ints()},
-					{Word: ptr.String(words[1].String()), Status: words[1].Stats.Ints()},
-				},
-				Leaderboard: LeaderboardResponse{
-					{Rank: 0, Best: GuessResponse{Status: []int{3, 1, 3, 3, 3}}, Username: "test", WordsPlayed: 2},
-					{Rank: 1, Best: GuessResponse{Status: []int{}}, Username: "second_test"},
+				Response: Response{
+					Guesses: []GuessResponse{
+						{Word: ptr.String(words[2].String()), Status: words[2].Stats.Ints()},
+						{Word: ptr.String(words[1].String()), Status: words[1].Stats.Ints()},
+					},
+					GamePerformance: LeaderboardResponse{
+						{Rank: 0, Best: GuessResponse{Status: []int{3, 1, 3, 3, 3}}, Username: "test", WordsPlayed: 2},
+						{Rank: 1, Best: GuessResponse{Status: []int{}}, Username: "second_test"},
+					},
 				},
 			},
 		},
@@ -216,7 +225,7 @@ func TestToInitialData(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			got := ToInitialData(tt.args.g, tt.args.username)
-			assert.Equal(t, tt.want.Leaderboard, got.Leaderboard)
+			assert.Equal(t, tt.want.GamePerformance, got.GamePerformance)
 			assert.Equal(t, tt.want.Active, got.Active)
 			assert.Equal(t, tt.want.Guesses, got.Guesses)
 
