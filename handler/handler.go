@@ -3,12 +3,13 @@ package handler
 import (
 	"context"
 	"net/http"
+	"time"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
 	"github.com/google/uuid"
 	"github.com/gorilla/websocket"
-	"github.com/lordvidex/errs"
+	"github.com/lordvidex/errs/v2"
 	"github.com/lordvidex/x/auth"
 	"github.com/lordvidex/x/ptr"
 	"github.com/lordvidex/x/req"
@@ -18,33 +19,61 @@ import (
 
 	"github.com/kodekulture/wordle-server/game"
 	"github.com/kodekulture/wordle-server/handler/token"
-	"github.com/kodekulture/wordle-server/service"
+	"github.com/kodekulture/wordle-server/internal/config"
 )
 
 var (
+	kors = cors.New(cors.Options{
+		AllowedOrigins: []string{"http://localhost:3000"},
+		AllowedMethods: []string{"GET", "POST", "PUT", "DELETE", "OPTIONS"},
+		AllowedHeaders: []string{"Accept", "Authorization", "Content-Type"},
+		MaxAge:         300,
+	})
 	// Create upgrade websocket connection
 	upgrader = websocket.Upgrader{
 		ReadBufferSize:  1024 * 1024,
 		WriteBufferSize: 1024 * 1024,
 		//Solving cross-domain problems
-		CheckOrigin: func(r *http.Request) bool {
-			return true
-		},
+		CheckOrigin: kors.OriginAllowed,
 	}
 )
 
+//go:generate mockgen -destination=../internal/mocks/service.go -package=mocks -typed . Service
+type Service interface {
+	// Player & Game ...
+	CreatePlayer(ctx context.Context, player *game.Player) error
+	GetPlayer(ctx context.Context, username string) (*game.Player, error)
+	ComparePasswords(hash, original string) error
+	UpdatePlayerSession(ctx context.Context, username string, sessionTs int64) error
+	GetPlayerRooms(ctx context.Context, playerID int) ([]game.Game, error)
+	GetGame(ctx context.Context, userID int, roomID uuid.UUID) (*game.Game, error)
+	GetInviteData(token string) (game.Player, uuid.UUID, bool)
+
+	// Room ...
+	NewRoom(ownerUsername string) string
+	CreateInvite(player game.Player, gameID uuid.UUID) string
+
+	// Hub ...
+	GetRoom(id uuid.UUID) (*game.Room, bool)
+
+	Stop(context.Context)
+}
+
+// Handler ...
 type Handler struct {
 	s      *http.Server
 	router chi.Router
-	srv    *service.Service
+	srv    Service
 	token  token.Handler
+	env    string
 }
 
-func New(srv *service.Service, tokenHandler token.Handler) *Handler {
+func New(srv Service, tokenHandler token.Handler) *Handler {
 	h := &Handler{
 		router: chi.NewRouter(),
 		srv:    srv,
 		token:  tokenHandler,
+		env:    config.Get("ENV"),
 	}
 
 	h.setup()
@@ -58,17 +87,8 @@ func (h *Handler) Start(port string) error {
 
 func (h *Handler) setup() {
 	r := h.router
-
-	cors := cors.New(cors.Options{
-		AllowedOrigins: []string{"http://localhost:3000"},
-		AllowedMethods: []string{"GET", "POST", "PUT", "DELETE", "OPTIONS"},
-		AllowedHeaders: []string{"Accept", "Authorization", "Content-Type", "X-CSRF-Token"},
-		ExposedHeaders: []string{"Link"},
-		MaxAge:         300,
-	})
-
 	// Middlewares
-	r.Use(cors.Handler)
+	r.Use(kors.Handler)
 	r.Use(middleware.Logger)
 
 	// Public routes
@@ -82,13 +102,14 @@ func (h *Handler) setup() {
 
 	// Private routes
 	r.Group(func(r chi.Router) {
-		r.Use(h.authMiddleware(AuthDecodeTypeFetch))
+		r.Use(h.sessionMiddleware)
 
 		r.Get("/me", h.me)
 		r.Post("/room", h.createRoom)
 		r.Get("/join/room/{id}", h.joinRoom)
 		r.Get("/room", h.rooms)
 		r.Get("/room/{id}", h.room)
+		r.Post("/logout", h.logout)
 	})
 
 }
@@ -103,9 +124,8 @@ type loginParams struct {
 	Password string `json:"password" validate:"required"`
 }
 
-type loginResponse struct {
-	AccessToken string `json:"access_token"`
-	// RefreshToken string `json:"refresh_token"`
+type messageResponse struct {
+	Message string `json:"message"`
 }
 
 func (h *Handler) login(w http.ResponseWriter, r *http.Request) {
@@ -130,19 +150,54 @@ func (h *Handler) login(w http.ResponseWriter, r *http.Request) {
 		resp.Error(w, err)
 		return
 	}
-	// generate tokens
-	var (
-		accessToken auth.Token
-		// refreshToken auth.Token
-	)
-	if accessToken, err = h.token.Generate(r.Context(), *player); err != nil {
+	// reset token sessions
+	player.SessionTs = time.Now().Unix()
+	if err = h.srv.UpdatePlayerSession(r.Context(), payload.Username, player.SessionTs); err != nil {
 		resp.Error(w, err)
 		return
 	}
-	result := loginResponse{AccessToken: string(accessToken) /* RefreshToken: string(refreshToken) */}
+	// generate tokens based on new sessions
+	var (
+		accessToken  auth.Token
+		refreshToken auth.Token
+	)
+	if accessToken, err = h.token.Generate(r.Context(), *player, accessTokenTTL); err != nil {
+		resp.Error(w, err)
+		return
+	}
+	if refreshToken, err = h.token.Generate(r.Context(), *player, refreshTokenTTL); err != nil {
+		resp.Error(w, err)
+		return
+	}
+	ck := newAccessCookie(accessToken)
+	http.SetCookie(w, &ck)
+	ck = newRefreshCookie(refreshToken)
+	http.SetCookie(w, &ck)
+	result := messageResponse{Message: "Login successful"}
 	resp.JSON(w, result)
-
 }
+
+func (h *Handler) logout(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	player := Player(ctx)
+
+	if err := h.srv.UpdatePlayerSession(ctx, player.Username, player.SessionTs-1); err != nil {
+		resp.Error(w, err)
+		return
+	}
+
+	// clear cookies
+	ck, err := r.Cookie(accessTokenKey)
+	if err == nil {
+		deleteCookie(w, ck)
+	}
+	ck, err = r.Cookie(refreshTokenKey)
+	if err == nil {
+		deleteCookie(w, ck)
+	}
+	resp.JSON(w, messageResponse{Message: "Logout successful"})
+}
+
 func (h *Handler) register(w http.ResponseWriter, r *http.Request) {
 	var payload loginParams
 	defer r.Body.Close()
@@ -151,21 +206,29 @@ func (h *Handler) register(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	ctx := r.Context()
-	player := game.Player{Username: payload.Username, Password: payload.Password}
+	player := game.Player{Username: payload.Username, Password: payload.Password, SessionTs: time.Now().Unix()}
 	if err := h.srv.CreatePlayer(ctx, &player); err != nil {
 		resp.Error(w, err)
 		return
 	}
 	var (
-		accessToken auth.Token
-		// refreshToken auth.Token
-		err error
+		accessToken  auth.Token
+		refreshToken auth.Token
+		err          error
 	)
-	if accessToken, err = h.token.Generate(ctx, player); err != nil {
+	if accessToken, err = h.token.Generate(ctx, player, accessTokenTTL); err != nil {
 		resp.Error(w, err)
 		return
 	}
-	result := loginResponse{AccessToken: string(accessToken) /*RefreshToken: string(refreshToken)*/}
+	if refreshToken, err = h.token.Generate(ctx, player, refreshTokenTTL); err != nil {
+		resp.Error(w, err)
+		return
+	}
+	ck := newAccessCookie(accessToken)
+	http.SetCookie(w, &ck)
+	ck = newRefreshCookie(refreshToken)
+	http.SetCookie(w, &ck)
+	result := messageResponse{Message: "Registration successful"}
 	resp.JSON(w, result)
 }
 

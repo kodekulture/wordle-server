@@ -13,6 +13,9 @@ type Player interface {
 	// GetByUsername returns a player by username
 	GetByUsername(ctx context.Context, username string) (*game.Player, error)
 
+	// UpdatePlayerSession resets the timestamp of the current user session
+	UpdatePlayerSession(ctx context.Context, username string, ts int64) error
+
 	// GetByID returns a player by ID
 	GetByID(ctx context.Context, id int) (*game.Player, error)
 

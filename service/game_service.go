@@ -4,7 +4,7 @@ import (
 	"context"
 
 	"github.com/google/uuid"
-	"github.com/lordvidex/errs"
+	"github.com/lordvidex/errs/v2"
 
 	"github.com/kodekulture/wordle-server/game"
 	"github.com/kodekulture/wordle-server/repository"
@@ -39,6 +39,10 @@ func (s *gameService) GetPlayer(ctx context.Context, username string) (*game.Pla
 		return nil, errs.WrapCode(err, errs.NotFound, "player not found")
 	}
 	return p, nil
+}
+
+func (s *gameService) UpdatePlayerSession(ctx context.Context, username string, sessionTs int64) error {
+	return s.pr.UpdatePlayerSession(ctx, username, sessionTs)
 }
 
 func (s *gameService) ComparePasswords(hash, original string) error {

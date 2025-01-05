@@ -1,7 +1,7 @@
 package hasher
 
 import (
-	"github.com/lordvidex/errs"
+	"github.com/lordvidex/errs/v2"
 	"golang.org/x/crypto/bcrypt"
 )
 

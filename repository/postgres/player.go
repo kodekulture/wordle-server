@@ -3,7 +3,8 @@ package postgres
 import (
 	"context"
 
-	"github.com/lordvidex/errs"
+	"github.com/jackc/pgx/v5/pgtype"
+	"github.com/lordvidex/errs/v2"
 
 	"github.com/kodekulture/wordle-server/game"
 	"github.com/kodekulture/wordle-server/repository"
@@ -46,4 +47,12 @@ func (r *PlayerRepo) GetByUsername(ctx context.Context, username string) (*game.
 		Username: player.Username,
 		Password: player.Password,
 	}, nil
+}
+
+// UpdatePlayerSession ...
+func (r *PlayerRepo) UpdatePlayerSession(ctx context.Context, username string, ts int64) error {
+	return r.Queries.UpdatePlayerSession(ctx, pgen.UpdatePlayerSessionParams{
+		Username:  username,
+		SessionTs: pgtype.Int8{Int64: ts, Valid: ts > 0},
+	})
 }

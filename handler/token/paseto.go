@@ -11,6 +11,10 @@ import (
 	"github.com/kodekulture/wordle-server/game"
 )
 
+const (
+	sessionTsKey = "xts"
+)
+
 var (
 	defaultFooter = "kodekulture"
 )
@@ -18,10 +22,9 @@ var (
 type Paseto struct {
 	footer       string
 	symmetricKey []byte
-	period       time.Duration
 }
 
-func New(key []byte, footer string, validity time.Duration) (*Paseto, error) {
+func New(key []byte, footer string) (*Paseto, error) {
 	if len(key) != 32 {
 		return nil, errors.New("invalid key length, key must be 32 bytes long")
 	}
@@ -31,13 +34,12 @@ func New(key []byte, footer string, validity time.Duration) (*Paseto, error) {
 	pas := Paseto{
 		symmetricKey: key,
 		footer:       footer,
-		period:       validity,
 	}
 	return &pas, nil
 }
 
-func (p *Paseto) Generate(ctx context.Context, player game.Player) (auth.Token, error) {
-	payload := p.fromPlayer(player)
+func (p *Paseto) Generate(ctx context.Context, player game.Player, period time.Duration) (auth.Token, error) {
+	payload := p.fromPlayer(player, period)
 	str, err := paseto.Encrypt(p.symmetricKey, payload, p.footer)
 	if err != nil {
 		return "", err
@@ -56,18 +58,19 @@ func (p *Paseto) Validate(ctx context.Context, token auth.Token) (game.Player, e
 	return p.toPlayer(payload)
 }
 
-func (p *Paseto) fromPlayer(player game.Player) paseto.JSONToken {
+func (p *Paseto) fromPlayer(player game.Player, period time.Duration) paseto.JSONToken {
 	now := time.Now()
 	payload := paseto.JSONToken{
 		IssuedAt:   now,
 		NotBefore:  now,
-		Expiration: now.Add(p.period),
+		Expiration: now.Add(period),
 		Issuer:     p.footer,
 	}
 	if player.Password != "" {
 		player.Password = ""
 	}
 	payload.Set("player", player)
+	payload.Set(sessionTsKey, player.SessionTs)
 	return payload
 }
 
