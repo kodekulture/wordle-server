@@ -219,9 +219,9 @@ func (r *Room) play(m Payload) {
 
 	// Send the result to all players in the room
 	result := PlayerGuessResponse{
-		Username:      m.sender.PName(),
-		GuessResponse: ToGuess(w, false),
-		RankOffset:    ptr.Obj(dRank),
+		Result:      ToGuess(w, false),
+		RankOffset:  ptr.Obj(dRank),
+		Leaderboard: ToLeaderboard(r.g.Leaderboard),
 	}
 	r.sendAll(newPayload(CPlay, result, m.From))
 
@@ -255,7 +255,7 @@ func (r *Room) join(m Payload) {
 		return
 	}
 	r.players[pconn.PName()] = pconn
-	r.sendAll(newPayload(CJoin, fmt.Sprintf("%s has joined", pconn.PName()), ""))
+	r.sendAll(newPayload(CJoin, fmt.Sprintf("%s has joined", pconn.PName()), pconn.PName()))
 }
 
 // leave process `SLeave` and `SKickout` events and broadcasts a `CLeave` event to all players in the room.

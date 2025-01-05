@@ -182,10 +182,11 @@
         {
             "rank": 0,
             "username": "escalopa",
-            "guess_response": {
+            "best": {
                 "played_at": "2023-06-19T16:53:27.581099801Z",
                 "status": [3,3,3,3,3]
-            }
+            },
+            "words_played": 3,
         },
         ...
     ],
@@ -201,7 +202,7 @@
 
 * Connects to the game's room
 * The token provied can be obtained from the [join room endpoint](#get-joinroomid-)
-* Once connected you will be able to send and receive messages from the server, messages  have two types 
+* Once connected you will be able to send and receive messages from the server, messages  have two types
   * [WSE] `server/xxx` means `client` => `server`
   * [WSE] `client/xxx` means `server` => `client`
 
@@ -264,7 +265,7 @@
 
 ### [WSE] client/play
 
-* When a player submits a word, other users are notified about the status of the leaderboard of this user.
+* When a player submits a word, other users are notified about the status of the leaderboard after the user's attempt.
 * The `status` is an array of 5 numbers, each number represents the status of the letter in the same position in the word.
   * `3` => correct letter and position
   * `2` => correct letter but wrong position
@@ -278,11 +279,19 @@
     "event": "client/play",
     "data": {
         "rank_offset": 0,
-        "username": "escalopa",
-        "guess_response": {
+        "result": {
             "played_at": "2023-06-19T19:16:36.715290087Z",
             "status": [1,2,2,1,3] 
-        }
+        },
+        "leaderboard": [
+          {
+            "rank": 0,
+            "best": [3,3,3,1,3],
+            "username": "other",
+            "words_played": 2
+          },
+          ...
+        ]
     },
     "from": "escalopa"
 }
@@ -334,6 +343,10 @@
 {
     "event": "client/data",
     "data": {
+        "created_at": "2023-06-19T19:16:36.715290087Z",
+        "started_at": "2023-06-19T19:16:36.715290087Z"
+        "creator": "someone",
+        "id": "...",
         "guesses": [
             {
                 "word": "FOLKS",
@@ -342,8 +355,8 @@
             }
         ],
         "active": true,
-        "board": [
-            "escalopa"
+        "leaderboard": [
+            ...
         ]
     },
     "from": "" 

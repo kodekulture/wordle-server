@@ -48,18 +48,18 @@ func TestToGame(t *testing.T) {
 					{Word: ptr.String("NATCO"), Status: []int{1, 1, 1, 2, 2}},
 					{Word: ptr.String("NOTCO"), Status: []int{1, 3, 1, 2, 1}},
 				},
-				GamePerformance: []game.PlayerGuessResponse{
+				GamePerformance: []game.PlayerSummaryResponse{
 					{
-						Username:      "user1",
-						GuessResponse: game.GuessResponse{Word: ptr.String("NOTCO"), Status: []int{1, 3, 1, 2, 1}},
+						Username: "user1",
+						Best:     game.GuessResponse{Word: ptr.String("NOTCO"), Status: []int{1, 3, 1, 2, 1}},
 					},
 					{
-						Username:      "user2",
-						GuessResponse: game.GuessResponse{Word: ptr.String("NOTCO"), Status: []int{1, 3, 1, 2, 1}},
+						Username: "user2",
+						Best:     game.GuessResponse{Word: ptr.String("NOTCO"), Status: []int{1, 3, 1, 2, 1}},
 					},
 					{
-						Username:      "user3",
-						GuessResponse: game.GuessResponse{Word: ptr.String("NOTCO"), Status: []int{1, 3, 1, 2, 1}},
+						Username: "user3",
+						Best:     game.GuessResponse{Word: ptr.String("NOTCO"), Status: []int{1, 3, 1, 2, 1}},
 					},
 				},
 			},
@@ -80,12 +80,12 @@ func TestToGame(t *testing.T) {
 			}
 
 			t.Log("Test Game ratings for all users")
-			m := make(map[string]game.PlayerGuessResponse)
+			m := make(map[string]game.PlayerSummaryResponse)
 			for _, s := range tt.want.GamePerformance {
 				m[s.Username] = s
 			}
 			for _, s := range got.GamePerformance {
-				gott, wantt := s.GuessResponse, m[s.Username].GuessResponse
+				gott, wantt := s.Best, m[s.Username].Best
 				assert.Equal(t, wantt.Status, gott.Status, "status mismatch")
 				if s.Username != tt.args.username {
 					assert.Nil(t, gott.Word, "word should be nil when not the current user")

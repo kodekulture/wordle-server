@@ -125,7 +125,7 @@ func (q *Queries) GamePlayer(ctx context.Context, arg GamePlayerParams) (GamePla
 }
 
 const gamePlayers = `-- name: GamePlayers :many
-SELECT p.id, p.username, gp.best_guess, gp.best_guess_time, gp.finished, gp.rank
+SELECT p.id, p.username, gp.best_guess, gp.best_guess_time, gp.finished, gp.rank, jsonb_array_length(gp.played_words)::int as total_words
 FROM game_player gp 
 JOIN player p ON gp.player_id = p.id 
 WHERE gp.game_id = $1
@@ -138,6 +138,7 @@ type GamePlayersRow struct {
 	BestGuessTime pgtype.Timestamptz
 	Finished      pgtype.Timestamptz
 	Rank          pgtype.Int4
+	TotalWords    int32
 }
 
 // returns all the players that played this game but only returns their best word
@@ -157,6 +158,7 @@ func (q *Queries) GamePlayers(ctx context.Context, gameID pgtype.UUID) ([]GamePl
 			&i.BestGuessTime,
 			&i.Finished,
 			&i.Rank,
+			&i.TotalWords,
 		); err != nil {
 			return nil, err
 		}

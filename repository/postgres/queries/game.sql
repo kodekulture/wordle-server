@@ -11,7 +11,7 @@ LIMIT sqlc.narg('limit') OFFSET $2;
 
 -- name: GamePlayers :many
 -- returns all the players that played this game but only returns their best word
-SELECT p.id, p.username, gp.best_guess, gp.best_guess_time, gp.finished, gp.rank
+SELECT p.id, p.username, gp.best_guess, gp.best_guess_time, gp.finished, gp.rank, jsonb_array_length(gp.played_words)::int as total_words
 FROM game_player gp 
 JOIN player p ON gp.player_id = p.id 
 WHERE gp.game_id = $1;

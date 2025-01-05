@@ -54,7 +54,7 @@ func ExampleToResponse() {
 	}
 	b.Write(bytes)
 	fmt.Println(b.String())
-	// Output: {"created_at":"0001-01-01T00:00:00Z","started_at":"0001-01-01T00:00:00Z","ended_at":null,"creator":"","guesses":[{"word":"JAMES","played_at":"0001-01-01T00:00:00Z","status":[1,3,1,2,1]},{"word":"HALLO","played_at":"0001-01-01T00:00:00Z","status":[3,1,3,3,3]}],"game_performance":[{"username":"test","guess_response":{"played_at":"0001-01-01T00:00:00Z","status":[3,1,3,3,3]}},{"username":"second_test","guess_response":{"played_at":"0001-01-01T00:00:00Z"}}],"id":"00000000-0000-0000-0000-000000000000"}
+	// Output:{"created_at":"0001-01-01T00:00:00Z","started_at":"0001-01-01T00:00:00Z","ended_at":null,"creator":"","guesses":[{"word":"JAMES","played_at":"0001-01-01T00:00:00Z","status":[1,3,1,2,1]},{"word":"HALLO","played_at":"0001-01-01T00:00:00Z","status":[3,1,3,3,3]}],"game_performance":[{"rank":0,"best":{"played_at":"0001-01-01T00:00:00Z","status":[3,1,3,3,3]},"username":"test","words_played":2},{"rank":1,"best":{"played_at":"0001-01-01T00:00:00Z"},"username":"second_test","words_played":0}],"id":"00000000-0000-0000-0000-000000000000"}
 }
 
 func TestToGuess(t *testing.T) {
@@ -115,18 +115,24 @@ func TestToGame(t *testing.T) {
 					{Word: ptr.String("NATCO"), Status: []int{1, 1, 1, 2, 2}},
 					{Word: ptr.String("NOTCO"), Status: []int{1, 3, 1, 2, 1}},
 				},
-				GamePerformance: []PlayerGuessResponse{
+				GamePerformance: []PlayerSummaryResponse{
 					{
-						Username:      "user1",
-						GuessResponse: GuessResponse{Word: ptr.String("NOTCO"), Status: []int{1, 3, 1, 2, 1}},
+						Username:    "user1",
+						Rank:        1,
+						WordsPlayed: 2,
+						Best:        GuessResponse{Word: ptr.String("NOTCO"), Status: []int{1, 3, 1, 2, 1}},
 					},
 					{
-						Username:      "user2",
-						GuessResponse: GuessResponse{Word: ptr.String("NOTCO"), Status: []int{1, 3, 1, 2, 1}},
+						Username:    "user2",
+						Rank:        2,
+						WordsPlayed: 2,
+						Best:        GuessResponse{Word: ptr.String("NOTCO"), Status: []int{1, 3, 1, 2, 1}},
 					},
 					{
-						Username:      "user3",
-						GuessResponse: GuessResponse{Word: ptr.String("NOTCO"), Status: []int{1, 3, 1, 2, 1}},
+						Username:    "user3",
+						Rank:        3,
+						WordsPlayed: 2,
+						Best:        GuessResponse{Word: ptr.String("NOTCO"), Status: []int{1, 3, 1, 2, 1}},
 					},
 				},
 			},
@@ -147,12 +153,12 @@ func TestToGame(t *testing.T) {
 			}
 
 			t.Log("Test Game ratings for all users")
-			m := make(map[string]PlayerGuessResponse)
+			m := make(map[string]PlayerSummaryResponse)
 			for _, s := range tt.want.GamePerformance {
 				m[s.Username] = s
 			}
 			for _, s := range got.GamePerformance {
-				gott, wantt := s.GuessResponse, m[s.Username].GuessResponse
+				gott, wantt := s.Best, m[s.Username].Best
 				assert.Equal(t, wantt.Status, gott.Status, "status mismatch")
 				if s.Username != tt.args.username {
 					assert.Nil(t, gott.Word, "word should be nil when not the current user")
@@ -183,9 +189,16 @@ func TestToInitialData(t *testing.T) {
 				username: "test",
 			},
 			want: InitialData{
-				Active:  false,
-				Rank:    nil,
-				Guesses: []GuessResponse{},
+				Response: Response{
+					Guesses: []GuessResponse{},
+					GamePerformance: LeaderboardResponse{
+						{
+							Best:     GuessResponse{Status: []int{}},
+							Username: "test",
+						},
+					},
+				},
+				Active: false,
 			},
 		},
 		{
@@ -196,10 +209,15 @@ func TestToInitialData(t *testing.T) {
 			},
 			want: InitialData{
 				Active: true,
-				Rank:   ptr.Obj([]string{"test", "second_test"}),
-				Guesses: []GuessResponse{
-					{Word: ptr.String(words[2].String()), Status: words[2].Stats.Ints()},
-					{Word: ptr.String(words[1].String()), Status: words[1].Stats.Ints()},
+				Response: Response{
+					Guesses: []GuessResponse{
+						{Word: ptr.String(words[2].String()), Status: words[2].Stats.Ints()},
+						{Word: ptr.String(words[1].String()), Status: words[1].Stats.Ints()},
+					},
+					GamePerformance: LeaderboardResponse{
+						{Rank: 0, Best: GuessResponse{Status: []int{3, 1, 3, 3, 3}}, Username: "test", WordsPlayed: 2},
+						{Rank: 1, Best: GuessResponse{Status: []int{}}, Username: "second_test"},
+					},
 				},
 			},
 		},
@@ -207,7 +225,7 @@ func TestToInitialData(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			got := ToInitialData(tt.args.g, tt.args.username)
-			assert.Equal(t, tt.want.Rank, got.Rank)
+			assert.Equal(t, tt.want.GamePerformance, got.GamePerformance)
 			assert.Equal(t, tt.want.Active, got.Active)
 			assert.Equal(t, tt.want.Guesses, got.Guesses)
 

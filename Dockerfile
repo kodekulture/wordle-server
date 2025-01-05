@@ -1,4 +1,4 @@
-FROM golang:1.20 AS development
+FROM golang:1.23 AS development
 WORKDIR /wordle
 COPY . .
 RUN go mod download

@@ -2,7 +2,9 @@ version: '3.8'
 
 services:
   app: 
-    image: dekuyo/wordle-server:latest
+    build:
+      context: .
+      target: production
     container_name: "wordle-app"
     volumes:
       - ./badger_db:/badger_db
