@@ -69,7 +69,7 @@
 
 ```json
 {
-  "access_token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2Vybm"
+    "message": "Login successful",
 }
 ```
 
@@ -96,7 +96,7 @@
 
 ```json
 {
-  "access_token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2Vybm"
+    "message": "Registration successful"
 }
 ```
 

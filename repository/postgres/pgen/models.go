@@ -28,7 +28,8 @@ type GamePlayer struct {
 }
 
 type Player struct {
-	ID       int32
-	Username string
-	Password string
+	ID        int32
+	Username  string
+	Password  string
+	SessionTs pgtype.Int8
 }

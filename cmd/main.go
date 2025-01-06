@@ -11,8 +11,8 @@ import (
 	"time"
 
 	"github.com/dgraph-io/badger"
-	"github.com/escalopa/goconfig"
 	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/kodekulture/wordle-server/internal/config"
 	"github.com/rs/zerolog"
 	zlog "github.com/rs/zerolog/log"
 
@@ -21,13 +21,6 @@ import (
 	"github.com/kodekulture/wordle-server/repository/badgr"
 	"github.com/kodekulture/wordle-server/repository/postgres"
 	"github.com/kodekulture/wordle-server/service"
-)
-
-var config = goconfig.New()
-
-const (
-	accessTokenTTL  = 24 * time.Hour       // 1 day
-	refreshTokenTTL = 365 * 24 * time.Hour // 1 year
 )
 
 func main() {
@@ -50,7 +43,7 @@ func main() {
 	if err != nil {
 		log.Fatal(err)
 	}
-	tokener, err := token.New([]byte(config.Get("PASETO_KEY")), "", accessTokenTTL)
+	tokener, err := token.New([]byte(config.Get("PASETO_KEY")), "")
 	if err != nil {
 		log.Fatal(err)
 	}

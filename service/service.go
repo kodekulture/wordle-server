@@ -5,7 +5,7 @@ import (
 	"fmt"
 
 	"github.com/google/uuid"
-	"github.com/lordvidex/errs"
+	"github.com/lordvidex/errs/v2"
 
 	"github.com/rs/zerolog/log"
 
@@ -19,7 +19,6 @@ var (
 	ErrNoPlayer = errs.B().Code(errs.InvalidArgument).Msg("player not provided").Err()
 )
 
-// TODO: maybe create an interface and put this struct one package down
 type Service struct {
 	*gameService
 	*hub
@@ -61,7 +60,7 @@ func (s *Service) loadHub(ctx context.Context) (map[uuid.UUID]*game.Room, error)
 	return hub, nil
 }
 
-func (s *Service) dumpHub(ctx context.Context, hub map[uuid.UUID]*game.Room) error {
+func (s *Service) dumpHub(_ context.Context, hub map[uuid.UUID]*game.Room) error {
 	err := s.cr.Dump(hub)
 	if err != nil {
 		return errs.WrapCode(err, errs.Internal, "error storing hub")
@@ -69,7 +68,7 @@ func (s *Service) dumpHub(ctx context.Context, hub map[uuid.UUID]*game.Room) err
 	return nil
 }
 
-func (s *Service) drop(ctx context.Context) error {
+func (s *Service) drop(_ context.Context) error {
 	err := s.cr.Drop()
 	if err != nil {
 		log.Err(err).Caller().Msg("error dropping hub")
