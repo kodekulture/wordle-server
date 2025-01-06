@@ -1,5 +1,5 @@
 # Wordle Server
-
+[![Docker Build](https://github.com/kodekulture/wordle-server/workflows/Docker%20Image%20CI/badge.svg)](https://github.com/kodekulture/wordle-server/actions)
 ## Sections
 
 - [Logic](#logic-)
