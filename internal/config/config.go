@@ -8,3 +8,12 @@ var cfg = goconfig.New()
 func Get(key string) string {
 	return cfg.Get(key)
 }
+
+// GetOrDefault ...
+func GetOrDefault(key, def string) string {
+	env := cfg.Get(key)
+	if env != "" {
+		return env
+	}
+	return def
+}

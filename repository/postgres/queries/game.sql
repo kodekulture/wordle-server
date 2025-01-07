@@ -39,3 +39,9 @@ WHERE game_id=$1 AND player_id=$2;
 
 -- name: CreateGame :exec
 INSERT INTO game (id, creator, correct_word, created_at, started_at) VALUES ($1, $2, $3, $4, $5);
+
+-- name: DeleteGame :exec
+DELETE FROM game WHERE id = $1;
+
+-- name: DeleteGamePlayers :exec
+DELETE FROM game_player WHERE game_id = $1;

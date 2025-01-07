@@ -75,6 +75,32 @@ func (r *GameRepo) StartGame(ctx context.Context, g *game.Game) error {
 	return tx.Commit(ctx)
 }
 
+// WipeGameData is used to delete corrupt/abandoned games
+func (r *GameRepo) WipeGameData(ctx context.Context, id uuid.UUID) error {
+	var (
+		tx  pgx.Tx
+		err error
+	)
+	// create a transaction
+	tx, err = r.db.Begin(ctx)
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback(ctx)
+
+	uid := pgtype.UUID{Bytes: id, Valid: true}
+
+	// delete the game players
+	if err = r.q.WithTx(tx).DeleteGamePlayers(ctx, uid); err != nil {
+		return err
+	}
+	if err = r.q.WithTx(tx).DeleteGame(ctx, uid); err != nil {
+		return err
+	}
+
+	return tx.Commit(ctx)
+}
+
 // FinishGame implements repository.Game.
 // FinishGame should be mostly an internal function because clients should not save their games themselves.
 //

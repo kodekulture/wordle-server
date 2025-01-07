@@ -73,6 +73,14 @@ func (s *gameService) StartGame(ctx context.Context, g *game.Game) error {
 	return nil
 }
 
+func (s *gameService) WipeGameData(ctx context.Context, id uuid.UUID) error {
+	err := s.gr.WipeGameData(ctx, id)
+	if err != nil {
+		return errs.WrapCode(err, errs.Internal, "error saving game for all players")
+	}
+	return nil
+}
+
 func (s *gameService) FinishGame(ctx context.Context, g *game.Game) error {
 	err := s.gr.FinishGame(ctx, g)
 	if err != nil {

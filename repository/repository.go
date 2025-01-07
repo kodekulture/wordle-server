@@ -35,6 +35,8 @@ type Game interface {
 
 	// FetchGame returns a game with a given gameID
 	FetchGame(context.Context, int, uuid.UUID) (*game.Game, error)
+	// WipeGameData is used to delete abandoned games
+	WipeGameData(context.Context, uuid.UUID) error
 }
 
 type HubBackup interface {

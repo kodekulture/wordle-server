@@ -9,6 +9,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/gorilla/websocket"
 	"github.com/lordvidex/x/ptr"
 	"github.com/rs/zerolog/log"
@@ -59,6 +60,7 @@ func newPayload(event Event, data interface{}, from string) Payload {
 type GameSaver interface {
 	FinishGame(context.Context, *Game) error
 	StartGame(context.Context, *Game) error
+	WipeGameData(context.Context, uuid.UUID) error
 }
 
 type Room struct {
@@ -228,7 +230,7 @@ func (r *Room) play(m Payload) {
 	// Check if the game has finished, if so, saveAndClose the room
 	if r.g.HasEnded() {
 		r.sendAll(newPayload(CFinish, "Game has ended", ""))
-		r.saveAndClose()
+		r.Close()
 	}
 }
 
@@ -298,20 +300,8 @@ func (r *Room) leave(m Payload) {
 	}
 }
 
-// saveAndClose closes the room and all players in the room.
+// Close closes the room and all players in the room.
 // This is used when the game is finished.
-func (r *Room) saveAndClose() {
-	r.Close()
-	// Store the game in the database
-	if r.saver != nil {
-		err := r.saver.FinishGame(context.Background(), r.g)
-		if err != nil {
-			log.Err(err).Caller().Msg("failed to store game")
-		}
-	}
-}
-
-// Close should be called only by the gc
 func (r *Room) Close() {
 	if r.closed {
 		return
@@ -327,6 +317,21 @@ func (r *Room) Close() {
 		delete(r.players, p.PName())
 	}
 	r.broadcast = nil // nil channel will prevent send while closing it will cause panics
+
+	// Store the game in the database
+	if r.saver != nil && r.g.StartedAt != nil {
+		// it's either game has started but got abandoned or game actually finished
+		var err error
+		if r.g.HasEnded() {
+			err = r.saver.FinishGame(context.Background(), r.g)
+		} else {
+			err = r.saver.WipeGameData(context.Background(), r.g.ID)
+		}
+
+		if err != nil {
+			log.Err(err).Caller().Msg("failed to store game")
+		}
+	}
 }
 
 // run processes all messages sent to the room.

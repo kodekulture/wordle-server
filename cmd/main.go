@@ -27,6 +27,10 @@ func main() {
 	done := make(chan struct{})
 
 	zlog.Logger = zlog.Output(zerolog.ConsoleWriter{Out: os.Stderr})
+	lvl, err := zerolog.ParseLevel(config.GetOrDefault("LOG_LEVEL", "debug"))
+	if err == nil {
+		zerolog.SetGlobalLevel(lvl)
+	}
 
 	appCtx, cancel := context.WithCancel(context.Background())
 	defer cancel()

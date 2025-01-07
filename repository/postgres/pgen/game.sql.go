@@ -39,6 +39,24 @@ type CreateGamePlayersParams struct {
 	PlayerID int32
 }
 
+const deleteGame = `-- name: DeleteGame :exec
+DELETE FROM game WHERE id = $1
+`
+
+func (q *Queries) DeleteGame(ctx context.Context, id pgtype.UUID) error {
+	_, err := q.db.Exec(ctx, deleteGame, id)
+	return err
+}
+
+const deleteGamePlayers = `-- name: DeleteGamePlayers :exec
+DELETE FROM game_player WHERE game_id = $1
+`
+
+func (q *Queries) DeleteGamePlayers(ctx context.Context, gameID pgtype.UUID) error {
+	_, err := q.db.Exec(ctx, deleteGamePlayers, gameID)
+	return err
+}
+
 const fetchGame = `-- name: FetchGame :one
 SELECT p.username AS creator_username, g.id, g.creator, g.correct_word, g.created_at, g.started_at, g.ended_at from game g
 JOIN player p ON g.creator = p.id WHERE g.id = $1
