@@ -1,8 +1,10 @@
 package game
 
 import (
+	"database/sql"
 	"reflect"
 	"testing"
+	"time"
 
 	"github.com/lordvidex/x/ptr"
 	"github.com/stretchr/testify/assert"
@@ -200,11 +202,57 @@ func TestRankBoard_FixPosition(t *testing.T) {
 			},
 			want: 0,
 		},
+		{
+			name: "jane should be first because she has two almost correct compared to test's one almost correct",
+			args: args{
+				username: "jane",
+			},
+			want: 1,
+			fields: fields{
+				withPos: func(p map[string]int) map[string]int {
+					p["test"], p["jane"] = 0, 1
+					return p
+				},
+				withRanks: func(rnks []*Session) []*Session {
+					const correct = "HELLO"
+					oneAlmost := []word.Word{{
+						Word:     "RKHMI",
+						Stats:    word.LetterStatuses{word.Incorrect, word.Incorrect, word.Exists, word.Incorrect, word.Incorrect},
+						PlayedAt: sql.NullTime{Time: time.Now().Add(-time.Minute), Valid: true},
+					}}
+
+					oneWrongSecondMoreCorrect := []word.Word{
+						{
+							Word:     "ABCDE",
+							Stats:    word.LetterStatuses{word.Incorrect, word.Incorrect, word.Incorrect, word.Incorrect, word.Incorrect},
+							PlayedAt: sql.NullTime{Time: time.Now().Add(-time.Second * 30), Valid: true},
+						},
+						{
+							Word:     "HEAPY",
+							Stats:    word.LetterStatuses{word.Exists, word.Exists, word.Incorrect, word.Incorrect, word.Incorrect},
+							PlayedAt: sql.NullTime{Time: time.Now(), Valid: true}},
+					}
+
+					return []*Session{
+						{
+							bestGuess: ptr.Obj(oneAlmost[0]),
+							Guesses:   oneAlmost,
+							Player:    Player{Username: "test"},
+						},
+						{
+							bestGuess: ptr.Obj(oneWrongSecondMoreCorrect[1]),
+							Guesses:   oneWrongSecondMoreCorrect,
+							Player:    Player{Username: "jane"},
+						},
+					}
+				},
+			},
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			pos := tt.fields.withPos(copyMap(positions))
-			rnks := tt.fields.withRanks(copySlice(copySlice(ranks)))
+			rnks := tt.fields.withRanks(copySlice(ranks))
 			r := RankBoard{
 				Positions: pos,
 				Ranks:     rnks,

@@ -64,22 +64,34 @@ func (w Word) Correct() bool {
 	return true
 }
 
-func (w Word) CorrectCount() (c int) {
+// group returns the number of correct and existing letters
+func (w Word) group() (c, a int) {
 	for _, s := range w.Stats {
-		if s == Correct {
+		switch s {
+		case Correct:
 			c++
+		case Exists:
+			a++
+		default:
+			continue
 		}
 	}
-	return c
+	return
 }
 
 // GreaterThan compares `w` with `other` returning true if `w` ranks higher than `other` otherwise false.
 // This function is similar to the `Less` function of the `sort.Interface` interface
 func (w Word) GreaterThan(other Word) bool {
-	if w.CorrectCount() == other.CorrectCount() {
-		return w.PlayedAt.Time.Before(other.PlayedAt.Time)
+	thisCorrect, thisExist := w.group()
+	itCorrect, itExist := other.group()
+
+	if thisCorrect != itCorrect {
+		return thisCorrect > itCorrect
 	}
-	return w.CorrectCount() > other.CorrectCount()
+	if thisExist != itExist {
+		return thisExist > itExist
+	}
+	return w.PlayedAt.Time.Before(other.PlayedAt.Time)
 }
 
 // Check compares the word to the correct word
