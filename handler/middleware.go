@@ -14,8 +14,8 @@ import (
 )
 
 const (
-	accessTokenKey  = "__Secure-access-token"
-	refreshTokenKey = "__Secure-refresh-token"
+	accessTokenKey  = "X-Access-Token"
+	refreshTokenKey = "X-Refresh-Token"
 )
 
 type (
@@ -62,6 +62,7 @@ func (h *Handler) sessionMiddleware(next http.Handler) http.Handler {
 				resp.Error(w, err)
 				return
 			}
+			http.SetCookie(w, accessCk) // set recently refreshed cookie
 			isDBPlayer = true
 		}
 

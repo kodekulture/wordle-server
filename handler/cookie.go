@@ -4,13 +4,8 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/kodekulture/wordle-server/internal/config"
 	"github.com/lordvidex/x/auth"
 )
-
-func isProd() bool {
-	return config.Get("ENV") == "prod"
-}
 
 const (
 	accessTokenTTL  = 1 * time.Hour        // 1 hr
@@ -22,7 +17,7 @@ func newAccessCookie(token auth.Token) http.Cookie {
 		Name:     accessTokenKey,
 		Value:    string(token),
 		Expires:  time.Now().Add(accessTokenTTL),
-		Secure:   isProd(), // enable development usage
+		Secure:   true,
 		HttpOnly: true,
 		SameSite: http.SameSiteNoneMode,
 	}
@@ -33,7 +28,7 @@ func newRefreshCookie(token auth.Token) http.Cookie {
 		Name:     refreshTokenKey,
 		Value:    string(token),
 		Expires:  time.Now().Add(refreshTokenTTL),
-		Secure:   isProd(), // enable development usage
+		Secure:   true,
 		HttpOnly: true,
 		SameSite: http.SameSiteLaxMode,
 	}

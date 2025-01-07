@@ -225,10 +225,10 @@ func (r *Room) play(m Payload) {
 	}
 	r.sendAll(newPayload(CPlay, result, m.From))
 
-	// Check if the game has finished, if so, close the room
+	// Check if the game has finished, if so, saveAndClose the room
 	if r.g.HasEnded() {
 		r.sendAll(newPayload(CFinish, "Game has ended", ""))
-		r.close()
+		r.saveAndClose()
 	}
 }
 
@@ -244,7 +244,7 @@ func (r *Room) join(m Payload) {
 		r.g.Join(pconn.player)
 	}
 	// Send the player his current state in the game.
-	// On error, close the player connection since he will have inconsistent data with which he can't play the game.
+	// On error, saveAndClose the player connection since he will have inconsistent data with which he can't play the game.
 	err := pconn.write(newPayload(CData, ToInitialData(ptr.ToObj(r.g), pconn.PName()), ""))
 	if err != nil {
 		log.Err(err).Caller().Msg("failed to send player data")
@@ -298,23 +298,10 @@ func (r *Room) leave(m Payload) {
 	}
 }
 
-// close closes the room and all players in the room.
+// saveAndClose closes the room and all players in the room.
 // This is used when the game is finished.
-func (r *Room) close() {
-	if r.closed {
-		return
-	}
-	r.closed = true
-	r.active = false
-	// Cancel the context to stop the `leave` goroutine and close
-	// all prevent any new players from sending messages to the room.
-	r.cancelCtx()
-	// Close all players connection
-	for _, p := range r.players {
-		p.close()
-		delete(r.players, p.PName())
-	}
-	close(r.broadcast)
+func (r *Room) saveAndClose() {
+	r.Close()
 	// Store the game in the database
 	if r.saver != nil {
 		err := r.saver.FinishGame(context.Background(), r.g)
@@ -324,23 +311,46 @@ func (r *Room) close() {
 	}
 }
 
+// Close should be called only by the gc
+func (r *Room) Close() {
+	if r.closed {
+		return
+	}
+	r.closed = true
+	r.active = false
+	// Cancel the context to stop the `leave` goroutine and saveAndClose
+	// all prevent any new players from sending messages to the room.
+	r.cancelCtx()
+	// Close all players connection
+	for _, p := range r.players {
+		p.close()
+		delete(r.players, p.PName())
+	}
+	r.broadcast = nil // nil channel will prevent send while closing it will cause panics
+}
+
 // run processes all messages sent to the room.
 // This function is blocking until the room is closed (r.broadcast is closed)
 func (r *Room) run() {
-	for message := range r.broadcast {
-		switch message.Type {
-		case SStart:
-			r.start(message)
-		case SMessage:
-			r.message(message)
-		case SPlay:
-			r.play(message)
-		case PJoin:
-			r.join(message)
-		case PLeave:
-			r.leave(message)
-		default:
-			message.sender.write(newPayload(CError, "Unknown message type", ""))
+	for {
+		select {
+		case <-r.ctx.Done():
+			return
+		case message := <-r.broadcast:
+			switch message.Type {
+			case SStart:
+				r.start(message)
+			case SMessage:
+				r.message(message)
+			case SPlay:
+				r.play(message)
+			case PJoin:
+				r.join(message)
+			case PLeave:
+				r.leave(message)
+			default:
+				message.sender.write(newPayload(CError, "Unknown message type", ""))
+			}
 		}
 	}
 }
