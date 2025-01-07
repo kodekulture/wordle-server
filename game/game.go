@@ -3,6 +3,7 @@ package game
 import (
 	"encoding/json"
 	"errors"
+	"sort"
 	"time"
 
 	"github.com/google/uuid"
@@ -54,6 +55,17 @@ func NewRankBoard(initial map[string]*Session) RankBoard {
 	}
 }
 
+// Resync ...
+func (r RankBoard) Resync() {
+	sort.Slice(r.Ranks, func(i, j int) bool {
+		return r.Ranks[i].BestGuess().GreaterThan(r.Ranks[j].BestGuess())
+	})
+
+	for i, v := range r.Ranks {
+		r.Positions[v.Player.Username] = i
+	}
+}
+
 // FixPosition returns the number of users displaced by the current user.
 //
 // It should be called after a new guess is made by this user.
@@ -79,7 +91,7 @@ type Game struct {
 	CreatedAt time.Time
 	Sessions  map[string]*Session
 	// There is no leaderboard until the game starts
-	Leaderboard RankBoard
+	Leaderboard RankBoard `json:"-"`
 	StartedAt   *time.Time
 	EndedAt     *time.Time
 	Creator     string

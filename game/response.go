@@ -90,7 +90,6 @@ func ToResponse(g Game, username string) Response {
 	if g.IsActive() {
 		it = slices.Values(g.Leaderboard.Ranks)
 	} else {
-		//it = maps.Values(g.Sessions)
 		it = sorted(maps.Values(g.Sessions), func(i, j *Session) bool { return i.Player.Username < j.Player.Username })
 	}
 

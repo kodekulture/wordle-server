@@ -2,11 +2,13 @@ package service
 
 import (
 	"context"
+	"strconv"
 	"sync"
 	"time"
 
 	"github.com/google/uuid"
 	"github.com/kodekulture/wordle-server/game"
+	"github.com/kodekulture/wordle-server/internal/config"
 )
 
 const (
@@ -62,6 +64,12 @@ func (s *hub) gc(ctx context.Context) {
 
 	isMarkPhase := true
 	garbage := make([]*game.Room, 0)
+
+	enabled := config.GetOrDefault("GC", true, strconv.ParseBool)
+
+	if !enabled {
+		return
+	}
 
 	mark := func() {
 		garbage = nil

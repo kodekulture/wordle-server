@@ -27,7 +27,7 @@ func main() {
 	done := make(chan struct{})
 
 	zlog.Logger = zlog.Output(zerolog.ConsoleWriter{Out: os.Stderr})
-	lvl, err := zerolog.ParseLevel(config.GetOrDefault("LOG_LEVEL", "debug"))
+	lvl, err := zerolog.ParseLevel(config.GetOrDefault("LOG_LEVEL", "debug", func(v string) (string, error) { return v, nil }))
 	if err == nil {
 		zerolog.SetGlobalLevel(lvl)
 	}

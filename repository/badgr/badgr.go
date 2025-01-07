@@ -58,6 +58,15 @@ func (r *HubRepo) Load(conv func(g *game.Game) *game.Room) (map[uuid.UUID]*game.
 			if err != nil {
 				return err
 			}
+
+			// recompute user's best guesses
+			for _, sess := range g.Sessions {
+				sess.Resync()
+			}
+			// recompute leaderboard
+			g.Leaderboard = game.NewRankBoard(g.Sessions)
+			g.Leaderboard.Resync()
+
 			// set value
 			hub[uid] = conv(&g)
 		}
