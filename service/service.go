@@ -97,7 +97,9 @@ func New(appCtx context.Context, gr repository.Game, pr repository.Player, cr re
 	if err != nil {
 		return nil, fmt.Errorf("failed to load hub: %s", err.Error())
 	}
-	s.hub = newHub(data)
+
+	log.Warn().Msgf("loaded hub with %d rooms", len(data))
+	s.hub = newHub(appCtx, data)
 	go s.drop(appCtx)
 	return s, nil
 }

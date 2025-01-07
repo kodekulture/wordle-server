@@ -43,9 +43,10 @@ func (r *PlayerRepo) GetByUsername(ctx context.Context, username string) (*game.
 		return nil, err
 	}
 	return &game.Player{
-		ID:       int(player.ID),
-		Username: player.Username,
-		Password: player.Password,
+		ID:        int(player.ID),
+		Username:  player.Username,
+		Password:  player.Password,
+		SessionTs: player.SessionTs.Int64,
 	}, nil
 }
 
