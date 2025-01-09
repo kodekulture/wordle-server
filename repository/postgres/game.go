@@ -156,6 +156,10 @@ func (r *GameRepo) FinishGame(ctx context.Context, g *game.Game) error {
 				Time:  s.BestGuess().PlayedAt.Time,
 				Valid: s.Won(),
 			},
+			Rank: pgtype.Int4{
+				Int32: int32(g.Leaderboard.Positions[s.Player.Username]),
+				Valid: true,
+			},
 		})
 	}
 	// commit
@@ -233,7 +237,7 @@ func NewGameRepo(db *pgxpool.Pool) *GameRepo {
 
 func toGame(g pgen.PlayerGamesRow) game.Game {
 	return game.Game{
-		ID:          uuid.UUID(g.ID.Bytes),
+		ID:          g.ID.Bytes,
 		Creator:     g.CreatorUsername,
 		CorrectWord: word.New(g.CorrectWord),
 		CreatedAt:   g.CreatedAt.Time,

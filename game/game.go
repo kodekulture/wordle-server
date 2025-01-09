@@ -217,10 +217,10 @@ func (s *Session) BestGuess() word.Word {
 }
 
 func (s *Session) WordsCount() int {
-	if v := len(s.Guesses); v != 0 {
-		return v
+	if s.wordsCount != 0 {
+		return s.wordsCount
 	}
-	return s.wordsCount
+	return len(s.Guesses)
 }
 
 func (s *Session) GreaterThan(other *Session) bool {
