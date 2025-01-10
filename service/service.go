@@ -42,6 +42,10 @@ func (s *Service) FinishGame(ctx context.Context, g *game.Game) error {
 	return s.gameService.FinishGame(ctx, g)
 }
 
+func (s *Service) ValidateWord(word string) bool {
+	return s.wordGen.Validate(word)
+}
+
 func (s *Service) CreateInvite(player game.Player, gameID uuid.UUID) string {
 	return s.r.Store(player, gameID)
 }
@@ -50,7 +54,7 @@ func (s *Service) GetInviteData(token string) (game.Player, uuid.UUID, bool) {
 	return s.r.Get(token)
 }
 
-func (s *Service) loadHub(ctx context.Context) (map[uuid.UUID]*game.Room, error) {
+func (s *Service) loadHub(_ context.Context) (map[uuid.UUID]*game.Room, error) {
 	hub, err := s.cr.Load(func(g *game.Game) *game.Room {
 		return game.NewRoom(g, s)
 	})

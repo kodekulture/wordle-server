@@ -57,10 +57,11 @@ func newPayload(event Event, data interface{}, from string) Payload {
 	}
 }
 
-type GameSaver interface {
+type GameService interface {
 	FinishGame(context.Context, *Game) error
 	StartGame(context.Context, *Game) error
 	WipeGameData(context.Context, uuid.UUID) error
+	ValidateWord(string) bool
 }
 
 type Room struct {
@@ -78,7 +79,7 @@ type Room struct {
 	active bool // whether the game has started
 	closed bool // whether the game has finished
 
-	saver GameSaver
+	gs GameService
 }
 
 // ID returns the ID of the room which is the ID of the game
@@ -115,7 +116,7 @@ func (r *Room) IsClosed() bool {
 }
 
 // NewRoom creates a new room and add it to the Hub.
-func NewRoom(game *Game, storer GameSaver) *Room {
+func NewRoom(game *Game, gs GameService) *Room {
 	ctx, cancel := context.WithCancel(context.Background())
 	room := &Room{
 		ctx:       ctx,
@@ -123,7 +124,7 @@ func NewRoom(game *Game, storer GameSaver) *Room {
 		players:   make(map[string]*PlayerConn),
 		broadcast: make(chan Payload),
 		g:         game,
-		saver:     storer,
+		gs:        gs,
 
 		active: game.StartedAt != nil && game.EndedAt == nil,
 		closed: game.EndedAt != nil,
@@ -147,8 +148,8 @@ func (r *Room) start(m Payload) {
 	}
 	r.g.Start()
 	// Save the game to the database
-	if r.saver != nil {
-		err := r.saver.StartGame(r.ctx, r.g)
+	if r.gs != nil {
+		err := r.gs.StartGame(r.ctx, r.g)
 		if err != nil {
 			m.sender.write(newPayload(CError, "Failed to start game", ""))
 			return
@@ -201,6 +202,7 @@ func (r *Room) play(m Payload) {
 		m.sender.write(newPayload(CError, "Invalid message", ""))
 		return
 	}
+
 	// Check given word length
 	if len(text) != word.Length {
 		m.sender.write(newPayload(CError, "Invalid message string length", ""))
@@ -211,8 +213,15 @@ func (r *Room) play(m Payload) {
 		m.sender.write(newPayload(CError, "Invalid message characters", ""))
 		return
 	}
+
 	// Process the given word and send error if the word is invalid
 	w := word.New(text)
+
+	if isEnglishWord := r.gs.ValidateWord(w.Word); !isEnglishWord {
+		m.sender.write(newPayload(CError, "Invalid english word", ""))
+		return
+	}
+
 	dRank, err := r.g.Play(m.sender.PName(), &w)
 	if err != nil {
 		m.sender.write(newPayload(CError, err.Error(), ""))
@@ -319,13 +328,13 @@ func (r *Room) Close() {
 	r.broadcast = nil // nil channel will prevent send while closing it will cause panics
 
 	// Store the game in the database
-	if r.saver != nil && r.g.StartedAt != nil {
+	if r.gs != nil && r.g.StartedAt != nil {
 		// it's either game has started but got abandoned or game actually finished
 		var err error
 		if r.g.HasEnded() {
-			err = r.saver.FinishGame(context.Background(), r.g)
+			err = r.gs.FinishGame(context.Background(), r.g)
 		} else {
-			err = r.saver.WipeGameData(context.Background(), r.g.ID)
+			err = r.gs.WipeGameData(context.Background(), r.g.ID)
 		}
 
 		if err != nil {
