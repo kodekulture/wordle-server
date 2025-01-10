@@ -4,6 +4,7 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/kodekulture/wordle-server/internal/config"
 	"github.com/lordvidex/x/auth"
 )
 
@@ -19,6 +20,7 @@ func newAccessCookie(token auth.Token) http.Cookie {
 		Expires:  time.Now().Add(accessTokenTTL),
 		Secure:   true,
 		HttpOnly: true,
+		Domain:   config.Get("COOKIE_DOMAIN"),
 		SameSite: http.SameSiteLaxMode,
 	}
 }
@@ -28,6 +30,7 @@ func newRefreshCookie(token auth.Token) http.Cookie {
 		Name:     refreshTokenKey,
 		Value:    string(token),
 		Expires:  time.Now().Add(refreshTokenTTL),
+		Domain:   config.Get("COOKIE_DOMAIN"),
 		Secure:   true,
 		HttpOnly: true,
 		SameSite: http.SameSiteLaxMode,
