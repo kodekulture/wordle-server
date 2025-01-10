@@ -4,10 +4,9 @@ package word
 
 import (
 	_ "embed"
-	"math/rand"
+	"math/rand/v2"
 	"strconv"
 	"strings"
-	"time"
 )
 
 var (
@@ -20,26 +19,33 @@ var (
 
 // localWordGenerator generates a word from one of the words in fileContent
 type localWordGenerator struct {
-	rnd   *rand.Rand
-	words []string
+	wordsArray []string
+	wordsMap   map[string]struct{}
 }
 
 func NewLocalGen() *localWordGenerator {
 	g := localWordGenerator{
-		rnd: rand.New(rand.NewSource(time.Now().UnixNano())),
+		wordsMap: make(map[string]struct{}),
 	}
 	g.loadWords()
 	return &g
 }
 
 func (g *localWordGenerator) loadWords() {
-	g.words = strings.Split(fileContent, "\n")
+	g.wordsArray = strings.Split(fileContent, "\n")
+	for _, word := range g.wordsArray {
+		g.wordsMap[word] = struct{}{}
+	}
 }
 
 func (g *localWordGenerator) Generate(length int) string {
 	if length != Length {
 		panic("only " + strconv.Itoa(Length) + " letter words are supported")
 	}
-	return g.words[g.rnd.Intn(len(g.words))]
+	return g.wordsArray[rand.IntN(len(g.wordsArray))]
+}
 
+func (g *localWordGenerator) Validate(guess string) bool {
+	_, ok := g.wordsMap[guess]
+	return ok
 }

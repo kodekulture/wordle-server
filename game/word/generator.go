@@ -4,4 +4,5 @@ package word
 
 type Generator interface {
 	Generate(length int) string
+	Validate(guess string) bool
 }

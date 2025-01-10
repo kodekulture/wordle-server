@@ -19,7 +19,7 @@ func newAccessCookie(token auth.Token) http.Cookie {
 		Expires:  time.Now().Add(accessTokenTTL),
 		Secure:   true,
 		HttpOnly: true,
-		SameSite: http.SameSiteNoneMode,
+		SameSite: http.SameSiteLaxMode,
 	}
 }
 
