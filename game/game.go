@@ -27,14 +27,6 @@ const (
 	// WordLength is the length of the word to be guessed
 )
 
-type GameStatus int
-
-const (
-	Created GameStatus = iota
-	Started
-	Finished
-)
-
 type RankBoard struct {
 	Positions map[string]int
 	Ranks     []*Session
