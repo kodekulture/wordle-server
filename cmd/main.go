@@ -30,6 +30,7 @@ func main() {
 	lvl, err := zerolog.ParseLevel(config.GetOrDefault("LOG_LEVEL", "debug", func(v string) (string, error) { return v, nil }))
 	if err == nil {
 		zerolog.SetGlobalLevel(lvl)
+		zlog.WithLevel(lvl).Msgf("Setting log level to %v", lvl)
 	}
 
 	appCtx, cancel := context.WithCancel(context.Background())

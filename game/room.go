@@ -45,19 +45,37 @@ const (
 type Payload struct {
 	Type   Event       `json:"event"`
 	Data   interface{} `json:"data"`
-	From   string      `json:"from"` // From is the name of the player that sent the message displayed to all other players in the room
-	sender *PlayerConn `json:"-"`    // sender is the player that sent the message
+	From   string      `json:"from"`          // From is the name of the player that sent the message displayed to all other players in the room
+	Key    string      `json:"key,omitempty"` // Key is optionally provided by clients for event deduplication. It has to be returned back to the client as is when applicable.
+	sender *PlayerConn // sender is the player that sent the message
 }
 
-func newPayload(event Event, data interface{}, from string) Payload {
-	return Payload{
+type payloadOpts func(*Payload)
+
+// withKey allows sending key for deduplication to clients. If key is not sent, messages might get deduplicated on client side.
+func withKey(key string) payloadOpts {
+	return func(p *Payload) { p.Key = key }
+}
+
+func withFrom(from string) payloadOpts {
+	return func(p *Payload) { p.From = from }
+}
+
+func newPayload(event Event, data interface{}, opts ...payloadOpts) Payload {
+	p := Payload{
 		Type: event,
 		Data: data,
-		From: from,
 	}
+	for _, opt := range opts {
+		if opt == nil {
+			continue
+		}
+		opt(&p)
+	}
+	return p
 }
 
-type GameService interface {
+type Service interface {
 	FinishGame(context.Context, *Game) error
 	StartGame(context.Context, *Game) error
 	WipeGameData(context.Context, uuid.UUID) error
@@ -79,7 +97,7 @@ type Room struct {
 	active bool // whether the game has started
 	closed bool // whether the game has finished
 
-	gs GameService
+	gs Service
 }
 
 // ID returns the ID of the room which is the ID of the game
@@ -95,7 +113,7 @@ func (r *Room) Game() *Game {
 // Join adds a player to the room
 func (r *Room) Join(p Player, conn *websocket.Conn) {
 	pc := newPlayerConn(conn, r, p)
-	r.tryBroadcast(newPayload(PJoin, pc, ""))
+	r.tryBroadcast(newPayload(PJoin, pc))
 }
 
 // CanJoin checks if a player can join the room
@@ -116,7 +134,7 @@ func (r *Room) IsClosed() bool {
 }
 
 // NewRoom creates a new room and add it to the Hub.
-func NewRoom(game *Game, gs GameService) *Room {
+func NewRoom(game *Game, gs Service) *Room {
 	ctx, cancel := context.WithCancel(context.Background())
 	room := &Room{
 		ctx:       ctx,
@@ -138,12 +156,12 @@ func (r *Room) start(m Payload) {
 	pconn := m.sender
 	// Check if the player is the creator of the game
 	if r.g.Creator != m.From {
-		m.sender.write(newPayload(CError, "Only the game's creator can start the game", ""))
+		m.sender.write(newPayload(CError, "Only the game's creator can start the game", withKey(m.Key)))
 		return
 	}
 	// Check if the game has already started
 	if r.active {
-		m.sender.write(newPayload(CError, "Game already started", ""))
+		m.sender.write(newPayload(CError, "Game already started", withKey(m.Key)))
 		return
 	}
 	r.g.Start()
@@ -151,23 +169,23 @@ func (r *Room) start(m Payload) {
 	if r.gs != nil {
 		err := r.gs.StartGame(r.ctx, r.g)
 		if err != nil {
-			m.sender.write(newPayload(CError, "Failed to start game", ""))
+			m.sender.write(newPayload(CError, "Failed to start game", withKey(m.Key)))
 			return
 		}
 	}
 	r.active = true
-	r.sendAll(newPayload(CStart, "Game started!", ""))
-	r.sendAll(newPayload(CData, ToInitialData(ptr.ToObj(r.g), pconn.PName()), ""))
+	r.sendAll(newPayload(CStart, "Game started!"))
+	r.sendAll(newPayload(CData, ToInitialData(ptr.ToObj(r.g), pconn.PName())))
 }
 
 // message process `SMessage` event and broadcasts a `CMessage` event to all players in the room.
 func (r *Room) message(m Payload) {
 	text, ok := m.Data.(string)
 	if !ok {
-		m.sender.write(newPayload(CError, "Invalid message type", ""))
+		m.sender.write(newPayload(CError, "Invalid message type", withKey(m.Key)))
 		return
 	}
-	r.sendAll(newPayload(CMessage, text, m.From))
+	r.sendAll(newPayload(CMessage, text, withFrom(m.From)))
 }
 
 var letterRegexp = regexp.MustCompile("^[a-zA-Z]+$")
@@ -177,40 +195,40 @@ var letterRegexp = regexp.MustCompile("^[a-zA-Z]+$")
 func (r *Room) play(m Payload) {
 	// If the game has not started, return an error
 	if !r.active {
-		m.sender.write(newPayload(CError, "Room isn't active", ""))
+		m.sender.write(newPayload(CError, "Room isn't active", withKey(m.Key)))
 		return
 	}
 	session := r.g.Sessions[m.sender.PName()]
 	// If the user is not in the game, return an error
 	if session == nil {
-		m.sender.write(newPayload(CError, "Invalid user session", ""))
+		m.sender.write(newPayload(CError, "Invalid user session", withKey(m.Key)))
 		return
 	}
 	// Check if the user already won
 	if session.Won() {
-		m.sender.write(newPayload(CError, "You already won", ""))
+		m.sender.write(newPayload(CError, "You already won", withKey(m.Key)))
 		return
 	}
 	// Check if the user already used all their attempts or won
 	if !session.CanPlay() {
-		m.sender.write(newPayload(CError, "You already used all your attempts", ""))
+		m.sender.write(newPayload(CError, "You already used all your attempts", withKey(m.Key)))
 		return
 	}
 	// Parse message and send error if type is not string
 	text, ok := m.Data.(string)
 	if !ok {
-		m.sender.write(newPayload(CError, "Invalid message", ""))
+		m.sender.write(newPayload(CError, "Invalid message", withKey(m.Key)))
 		return
 	}
 
 	// Check given word length
 	if len(text) != word.Length {
-		m.sender.write(newPayload(CError, "Invalid message string length", ""))
+		m.sender.write(newPayload(CError, "Invalid message string length", withKey(m.Key)))
 		return
 	}
 	// Check if the given word is valid
 	if !letterRegexp.MatchString(text) {
-		m.sender.write(newPayload(CError, "Invalid message characters", ""))
+		m.sender.write(newPayload(CError, "Invalid message characters", withKey(m.Key)))
 		return
 	}
 
@@ -218,13 +236,13 @@ func (r *Room) play(m Payload) {
 	w := word.New(text)
 
 	if isEnglishWord := r.gs.ValidateWord(w.Word); !isEnglishWord {
-		m.sender.write(newPayload(CError, "Invalid english word", ""))
+		m.sender.write(newPayload(CError, "Invalid english word", withKey(m.Key)))
 		return
 	}
 
 	dRank, err := r.g.Play(m.sender.PName(), &w)
 	if err != nil {
-		m.sender.write(newPayload(CError, err.Error(), ""))
+		m.sender.write(newPayload(CError, err.Error(), withKey(m.Key)))
 		return
 	}
 
@@ -234,11 +252,11 @@ func (r *Room) play(m Payload) {
 		RankOffset:  ptr.Obj(dRank),
 		Leaderboard: ToLeaderboard(r.g.Leaderboard),
 	}
-	r.sendAll(newPayload(CPlay, result, m.From))
+	r.sendAll(newPayload(CPlay, result, withFrom(m.From), withKey(m.Key)))
 
 	// Check if the game has finished, if so, saveAndClose the room
 	if r.g.HasEnded() {
-		r.sendAll(newPayload(CFinish, "Game has ended", ""))
+		r.sendAll(newPayload(CFinish, "Game has ended"))
 		r.Close()
 	}
 }
@@ -248,7 +266,7 @@ func (r *Room) join(m Payload) {
 	old := r.players[pconn.PName()]
 	// If the player is already in the room, kick him out.
 	if old != nil {
-		r.leave(newPayload(PKickout, old, ""))
+		r.leave(newPayload(PKickout, old))
 	}
 	// Create a new session for the user if it doesn't exist.
 	if _, ok := r.g.Sessions[pconn.PName()]; !ok {
@@ -256,7 +274,7 @@ func (r *Room) join(m Payload) {
 	}
 	// Send the player his current state in the game.
 	// On error, saveAndClose the player connection since he will have inconsistent data with which he can't play the game.
-	err := pconn.write(newPayload(CData, ToInitialData(ptr.ToObj(r.g), pconn.PName()), ""))
+	err := pconn.write(newPayload(CData, ToInitialData(ptr.ToObj(r.g), pconn.PName())))
 	if err != nil {
 		log.Err(err).Caller().Msg("failed to send player data")
 		err = pconn.close()
@@ -266,7 +284,7 @@ func (r *Room) join(m Payload) {
 		return
 	}
 	r.players[pconn.PName()] = pconn
-	r.sendAll(newPayload(CJoin, fmt.Sprintf("%s has joined", pconn.PName()), pconn.PName()))
+	r.sendAll(newPayload(CJoin, fmt.Sprintf("%s has joined", pconn.PName()), withFrom(pconn.PName())))
 }
 
 // leave process `SLeave` and `SKickout` events and broadcasts a `CLeave` event to all players in the room.
@@ -305,7 +323,7 @@ func (r *Room) leave(m Payload) {
 		} else { // PLeave
 			text = fmt.Sprintf("%s has left", p.PName())
 		}
-		r.sendAll(newPayload(CLeave, text, ""))
+		r.sendAll(newPayload(CLeave, text))
 	}
 }
 
@@ -351,6 +369,9 @@ func (r *Room) run() {
 		case <-r.ctx.Done():
 			return
 		case message := <-r.broadcast:
+			log.Debug().
+				Str("game", r.g.ID.String()).
+				Msgf("received message <%v>", message)
 			switch message.Type {
 			case SStart:
 				r.start(message)
@@ -363,7 +384,7 @@ func (r *Room) run() {
 			case PLeave:
 				r.leave(message)
 			default:
-				message.sender.write(newPayload(CError, "Unknown message type", ""))
+				message.sender.write(newPayload(CError, "Unknown message type", withKey(message.Key)))
 			}
 		}
 	}
@@ -388,7 +409,7 @@ func (r *Room) sendAll(payload Payload) {
 		}
 	}
 	if len(errs) != 0 {
-		r.leave(newPayload(PLeave, errs, ""))
+		r.leave(newPayload(PLeave, errs))
 	}
 }
 
@@ -454,7 +475,7 @@ func (p *PlayerConn) ping() {
 		err := p.conn.WriteMessage(websocket.PingMessage, []byte{})
 		p.writeMu.Unlock()
 		if err != nil {
-			p.room.tryBroadcast(newPayload(PLeave, p, ""))
+			p.room.tryBroadcast(newPayload(PLeave, p))
 			return
 		}
 	}
@@ -467,12 +488,12 @@ func (p *PlayerConn) read() {
 		var payload Payload
 		err := p.conn.ReadJSON(&payload)
 		if err != nil {
-			p.room.tryBroadcast(newPayload(PLeave, p, ""))
+			p.room.tryBroadcast(newPayload(PLeave, p))
 			break
 		}
 		// if the payload type is not prefixed with "server/" then it is not allowed to be sent by the player.
 		if !strings.HasPrefix(string(payload.Type), "server/") {
-			p.write(newPayload(CError, "unsupported action", ""))
+			p.write(newPayload(CError, "unsupported action", withKey(payload.Key)))
 			continue
 		}
 		payload.From = p.PName() // From set by the client is ignored by the server for security reasons.
