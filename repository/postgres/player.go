@@ -26,8 +26,9 @@ func NewPlayerRepo(db pgen.DBTX) *PlayerRepo {
 // Create implements repository.Player.
 func (r *PlayerRepo) Create(ctx context.Context, player game.Player) error {
 	return r.AddPlayer(ctx, pgen.AddPlayerParams{
-		Username: player.Username,
-		Password: player.Password,
+		Username:  player.Username,
+		Password:  player.Password,
+		SessionTs: pgtype.Int8{Int64: player.SessionTs, Valid: true},
 	})
 }
 
