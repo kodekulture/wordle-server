@@ -6,25 +6,34 @@ services:
       context: .
       target: production
     container_name: "wordle-app"
-    volumes:
-      - ./badger_db:/badger_db
     ports:
       - "9000:9000"
     environment:
       - POSTGRES_URL=postgresql://postgres:postgres@db:5432/wordle?sslmode=disable
       - PORT=9000
       - PASETO_KEY=12345678901234567890123456789012
-      - BADGER_PATH=./badger_db
+      - REDIS_URL=redis://redis:6379
       - ALLOWED_ORIGINS=http://localhost:3000
     healthcheck:
-      test: ["CMD", "curl", "http://localhost:9000/health"]
+      test: ["CMD", "wget", "--spider", "-q", "http://localhost:9000/health"]
       interval: 10s
       timeout: 30s
       retries: 5
     depends_on:
       db: 
         condition: service_healthy
-    
+      redis:
+        condition: service_healthy
+  redis:
+    image: redis:latest
+    container_name: "wordle-redis"
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5 
   db:
     container_name: "wordle-db" 
     image: postgres:latest
@@ -51,7 +60,5 @@ services:
     depends_on:
       db: 
         condition: service_healthy
-      
-    
 volumes:
   db:
