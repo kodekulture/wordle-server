@@ -283,4 +283,5 @@ func setSessions(gm *game.Game, allPlayers []pgen.GamePlayersRow, thisPlayer pge
 	}
 	gm.Sessions = sessions
 	gm.Leaderboard = rankBoard
+	gm.Resync()
 }

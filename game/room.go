@@ -84,9 +84,6 @@ type Service interface {
 
 type Room struct {
 	// This context is used to protect writes in room's closed channels
-	// When sending to any of the room's channels(leaveChan, broadcast) this context
-	// must be still active, Otherwise the sending should not be initiated.
-	// As a tip use a select stm when sending messsage to any of the room's channels
 	ctx       context.Context
 	cancelCtx func() // cancel the room's context
 
@@ -165,7 +162,7 @@ func (r *Room) start(m Payload) {
 		return
 	}
 	r.g.Start()
-	// Save the game to the database
+	// Save the game to the database, so users can jump back in
 	if r.gs != nil {
 		err := r.gs.StartGame(r.ctx, r.g)
 		if err != nil {
