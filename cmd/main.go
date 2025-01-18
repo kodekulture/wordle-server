@@ -11,12 +11,12 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/dgraph-io/badger"
 	"github.com/jackc/pgx/v5/pgxpool"
-	"github.com/kodekulture/wordle-server/internal/config"
 	redis9 "github.com/redis/go-redis/v9"
 	"github.com/rs/zerolog"
 	zlog "github.com/rs/zerolog/log"
+
+	"github.com/kodekulture/wordle-server/internal/config"
 
 	"github.com/kodekulture/wordle-server/handler"
 	"github.com/kodekulture/wordle-server/handler/token"
@@ -73,16 +73,6 @@ func getConnection(ctx context.Context) (*pgxpool.Pool, error) {
 		return nil, errors.Join(err, errors.New("failed to ping database"))
 	}
 	return conn, nil
-}
-
-func getCacher() (*badger.DB, error) {
-	// Open the Badger database located in the /tmp/badger directory.
-	// It will be created if it doesn't exist.
-	db, err := badger.Open(badger.DefaultOptions(config.Get("BADGER_PATH")))
-	if err != nil {
-		return nil, err
-	}
-	return db, nil
 }
 
 func getRedis(ctx context.Context) (*redis9.Client, error) {

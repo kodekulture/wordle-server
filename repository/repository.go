@@ -40,15 +40,6 @@ type Game interface {
 	WipeGameData(context.Context, uuid.UUID) error
 }
 
-type HubBackup interface {
-	// Load loads latest hub state
-	Load(converter func(g *game.Game) *game.Room) (hub map[uuid.UUID]*game.Room, err error)
-	// Dump dump the hub data into a file
-	Dump(hub map[uuid.UUID]*game.Room) error
-	// Drop deletes the hub data file
-	Drop() error
-}
-
 type Hub interface {
 	CreateGame(context.Context, *game.Game) error
 	LoadGame(context.Context, uuid.UUID) (*game.Game, error)
