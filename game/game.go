@@ -130,19 +130,19 @@ func New(creator string, correctWord word.Word) *Game {
 // It returns an integer indicating the number of players this user has displaced on the leaderboard.
 //
 // Play also sets the EndTime of the game if the game has ended for every player.
-func (g *Game) Play(player string, guess *word.Word) (int, error) {
+func (g *Game) Play(player string, guess *word.Word) (int, bool, error) {
 	session := g.Sessions[player]
 	if session == nil {
-		return 0, ErrPlayerNotFound
+		return 0, false, ErrPlayerNotFound
 	}
 
 	if session.Ended() { // game has ended, no need to add more guesses
-		return 0, ErrSessionEnded
+		return 0, false, ErrSessionEnded
 	}
 	// process the guess
 	guess.PlayedAt.Scan(time.Now().UTC())
 	guess.Check(g.CorrectWord)
-	session.play(ptr.ToObj(guess))
+	usersBest := session.play(ptr.ToObj(guess))
 
 	// update the leaderboard
 	offset := g.Leaderboard.FixPosition(session.Player.Username)
@@ -153,7 +153,7 @@ func (g *Game) Play(player string, guess *word.Word) (int, error) {
 			g.EndedAt = &now // game is over when everyone has finished guessing the word or have failed to guess the word
 		}
 	}
-	return offset, nil
+	return offset, usersBest, nil
 }
 
 // Resync ...
@@ -200,15 +200,18 @@ func (s *Session) Resync() {
 }
 
 // play updates the current bestGuess made by the user
-func (s *Session) play(w word.Word) {
+func (s *Session) play(w word.Word) bool {
 	s.Guesses = append(s.Guesses, w)
 	if s.bestGuess == nil {
 		s.bestGuess = &w
-	} else {
-		if w.GreaterThan(s.BestGuess()) {
-			s.bestGuess = ptr.Obj(w)
-		}
+		return true
 	}
+	if w.GreaterThan(s.BestGuess()) {
+		s.bestGuess = ptr.Obj(w)
+		return true
+	}
+
+	return false
 }
 
 func (s *Session) JSON() []byte {

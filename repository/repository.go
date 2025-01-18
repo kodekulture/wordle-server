@@ -7,6 +7,7 @@ import (
 	"github.com/google/uuid"
 
 	"github.com/kodekulture/wordle-server/game"
+	"github.com/kodekulture/wordle-server/game/word"
 )
 
 type Player interface {
@@ -46,4 +47,12 @@ type HubBackup interface {
 	Dump(hub map[uuid.UUID]*game.Room) error
 	// Drop deletes the hub data file
 	Drop() error
+}
+
+type Hub interface {
+	CreateGame(context.Context, *game.Game) error
+	LoadGame(context.Context, uuid.UUID) (*game.Game, error)
+	DeleteGame(context.Context, uuid.UUID) error
+	Exists(context.Context, uuid.UUID) bool
+	AddGuess(context.Context, uuid.UUID, string, word.Word, bool) error
 }

@@ -80,6 +80,7 @@ type Service interface {
 	StartGame(context.Context, *Game) error
 	WipeGameData(context.Context, uuid.UUID) error
 	ValidateWord(string) bool
+	AddGuess(context.Context, uuid.UUID, string, word.Word, bool) error
 }
 
 type Room struct {
@@ -237,10 +238,14 @@ func (r *Room) play(m Payload) {
 		return
 	}
 
-	dRank, err := r.g.Play(m.sender.PName(), &w)
+	dRank, usersBest, err := r.g.Play(m.sender.PName(), &w)
 	if err != nil {
 		m.sender.write(newPayload(CError, err.Error(), withKey(m.Key)))
 		return
+	}
+
+	if err = r.gs.AddGuess(r.ctx, r.g.ID, m.sender.PName(), w, usersBest); err != nil {
+		log.Err(err).Caller().Msg("failed to store guess")
 	}
 
 	// Send the result to all players in the room

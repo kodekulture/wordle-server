@@ -80,7 +80,7 @@ func TestGame_Play(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			g := tt.g
 			w := tt.w
-			_, result := g.Play(tt.player, &w)
+			_, _, result := g.Play(tt.player, &w)
 			if tt.expectErr != result {
 				t.Errorf("expected %v got %v", tt.expectErr, result)
 			}

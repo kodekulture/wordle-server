@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+
 	"github.com/kodekulture/wordle-server/game"
 	"github.com/kodekulture/wordle-server/internal/config"
 )
@@ -20,24 +21,21 @@ const (
 	EmptyRoomDuration = time.Minute * 15
 )
 
-type hub struct {
+type localStorage struct {
 	mu    sync.RWMutex
 	rooms map[uuid.UUID]*game.Room
 }
 
 // NewStorage returns a new Storage.
-func newHub(ctx context.Context, r map[uuid.UUID]*game.Room) *hub {
-	if r == nil {
-		r = make(map[uuid.UUID]*game.Room)
-	}
-	h := hub{rooms: r}
+func newLocalStorage(ctx context.Context) *localStorage {
+	h := localStorage{rooms: make(map[uuid.UUID]*game.Room)}
 	go h.gc(ctx)
 
 	return &h
 }
 
 // GetRoom returns the room with the given id and a bool indicating whether the room was found.
-func (s *hub) GetRoom(id uuid.UUID) (*game.Room, bool) {
+func (s *localStorage) GetRoom(id uuid.UUID) (*game.Room, bool) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	r, ok := s.rooms[id]
@@ -45,20 +43,20 @@ func (s *hub) GetRoom(id uuid.UUID) (*game.Room, bool) {
 }
 
 // SetRoom sets the room with the given id to the given room.
-func (s *hub) SetRoom(id uuid.UUID, r *game.Room) {
+func (s *localStorage) SetRoom(id uuid.UUID, r *game.Room) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.rooms[id] = r
 }
 
 // DeleteRoom deletes the room with the given id.
-func (s *hub) DeleteRoom(id uuid.UUID) {
+func (s *localStorage) DeleteRoom(id uuid.UUID) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	delete(s.rooms, id)
 }
 
-func (s *hub) gc(ctx context.Context) {
+func (s *localStorage) gc(ctx context.Context) {
 	ticker := time.NewTicker(15 * time.Minute)
 	defer ticker.Stop()
 
