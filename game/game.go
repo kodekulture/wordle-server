@@ -168,7 +168,7 @@ func (g *Game) Resync() {
 }
 
 func (g *Game) Players() []string {
-	usernames := make([]string, len(g.Sessions))
+	usernames := make([]string, 0, len(g.Sessions))
 	for username := range g.Sessions {
 		usernames = append(usernames, username)
 	}
