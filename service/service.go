@@ -2,7 +2,6 @@ package service
 
 import (
 	"context"
-	"fmt"
 
 	"github.com/google/uuid"
 	"github.com/lordvidex/errs/v2"
@@ -19,12 +18,13 @@ var (
 	ErrNoPlayer = errs.B().Code(errs.InvalidArgument).Msg("player not provided").Err()
 )
 
+// Service ...
 type Service struct {
-	*gameService
-	*hub
+	*coldStorage
+	*localStorage
 	r       random.RandomGen
-	cr      repository.HubBackup
 	wordGen word.Generator
+	store   repository.Hub
 }
 
 // NewRoom creates a new room and returns the id of the game that is currently running in this room
@@ -37,73 +37,83 @@ func (s *Service) NewRoom(username string) string {
 	return room.ID()
 }
 
-func (s *Service) FinishGame(ctx context.Context, g *game.Game) error {
-	s.DeleteRoom(g.ID)
-	return s.gameService.FinishGame(ctx, g)
+// StartGame ...
+func (s *Service) StartGame(ctx context.Context, g *game.Game) error {
+	err := s.coldStorage.StartGame(ctx, g)
+	if err != nil {
+		return err
+	}
+	return s.store.CreateGame(ctx, g)
 }
 
+// WipeGameData ...
+func (s *Service) WipeGameData(ctx context.Context, id uuid.UUID) error {
+	err := s.coldStorage.WipeGameData(ctx, id)
+	if err != nil {
+		return err
+	}
+	return s.store.DeleteGame(ctx, id)
+}
+
+// GetRoom ...
+func (s *Service) GetRoom(id uuid.UUID) (*game.Room, bool) {
+	if r, ok := s.localStorage.GetRoom(id); ok {
+		return r, ok
+	}
+
+	// does game exist in store?
+	if !s.store.Exists(context.Background(), id) {
+		return nil, false
+	}
+
+	// try to load game
+	g, err := s.store.LoadGame(context.Background(), id)
+	if err != nil {
+		log.Error().Err(err).Str("source", "hub").Msg("failed to load game")
+		return nil, false
+	}
+	// create and add room to hub
+	r := game.NewRoom(g, s)
+	s.SetRoom(g.ID, r)
+
+	return r, true
+}
+
+// FinishGame ...
+func (s *Service) FinishGame(ctx context.Context, g *game.Game) error {
+	err := s.coldStorage.FinishGame(ctx, g)
+	if err != nil {
+		return err
+	}
+	s.DeleteRoom(g.ID)
+	return s.store.DeleteGame(ctx, g.ID)
+}
+
+// ValidateWord ...
 func (s *Service) ValidateWord(word string) bool {
 	return s.wordGen.Validate(word)
 }
 
+func (s *Service) AddGuess(ctx context.Context, gameID uuid.UUID, player string, guess word.Word, isBest bool) error {
+	return s.store.AddGuess(ctx, gameID, player, guess, isBest)
+}
+
+// CreateInvite ...
 func (s *Service) CreateInvite(player game.Player, gameID uuid.UUID) string {
 	return s.r.Store(player, gameID)
 }
 
+// GetInviteData ...
 func (s *Service) GetInviteData(token string) (game.Player, uuid.UUID, bool) {
 	return s.r.Get(token)
 }
 
-func (s *Service) loadHub(_ context.Context) (map[uuid.UUID]*game.Room, error) {
-	hub, err := s.cr.Load(func(g *game.Game) *game.Room {
-		return game.NewRoom(g, s)
-	})
-	if err != nil {
-		return nil, errs.WrapCode(err, errs.Internal, "error loading hub")
+// New ...
+func New(appCtx context.Context, gr repository.Game, pr repository.Player, h repository.Hub) *Service {
+	return &Service{
+		r:            random.New(appCtx),
+		coldStorage:  newColdStorage(gr, pr),
+		wordGen:      word.NewLocalGen(),
+		localStorage: newLocalStorage(appCtx),
 	}
-	return hub, nil
-}
-
-func (s *Service) dumpHub(_ context.Context, hub map[uuid.UUID]*game.Room) error {
-	err := s.cr.Dump(hub)
-	if err != nil {
-		return errs.WrapCode(err, errs.Internal, "error storing hub")
-	}
-	return nil
-}
-
-func (s *Service) drop(_ context.Context) error {
-	err := s.cr.Drop()
-	if err != nil {
-		log.Err(err).Caller().Msg("error dropping hub")
-		return err
-	}
-	return nil
-}
-
-func (s *Service) Stop(ctx context.Context) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	err := s.dumpHub(ctx, s.rooms)
-	if err != nil {
-		log.Err(err).Caller().Msg("failed to dump hub")
-	}
-}
-
-func New(appCtx context.Context, gr repository.Game, pr repository.Player, cr repository.HubBackup) (*Service, error) {
-	s := &Service{
-		r:           random.New(appCtx),
-		gameService: newGameSrv(gr, pr),
-		wordGen:     word.NewLocalGen(),
-		cr:          cr,
-	}
-	data, err := s.loadHub(appCtx)
-	if err != nil {
-		return nil, fmt.Errorf("failed to load hub: %s", err.Error())
-	}
-
-	log.Warn().Msgf("loaded hub with %d rooms", len(data))
-	s.hub = newHub(appCtx, data)
-	go s.drop(appCtx)
-	return s, nil
 }

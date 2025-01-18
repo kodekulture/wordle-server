@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"errors"
+	"fmt"
 	"log"
 	"net/http"
 	"os"
@@ -13,13 +14,14 @@ import (
 	"github.com/dgraph-io/badger"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/kodekulture/wordle-server/internal/config"
+	redis9 "github.com/redis/go-redis/v9"
 	"github.com/rs/zerolog"
 	zlog "github.com/rs/zerolog/log"
 
 	"github.com/kodekulture/wordle-server/handler"
 	"github.com/kodekulture/wordle-server/handler/token"
-	"github.com/kodekulture/wordle-server/repository/badgr"
 	"github.com/kodekulture/wordle-server/repository/postgres"
+	"github.com/kodekulture/wordle-server/repository/redis"
 	"github.com/kodekulture/wordle-server/service"
 )
 
@@ -40,14 +42,14 @@ func main() {
 	if err != nil {
 		log.Fatal(err)
 	}
-	cache, err := getCacher()
+
+	cl, err := getRedis(appCtx)
 	if err != nil {
 		log.Fatal(err)
 	}
-	srv, err := service.New(appCtx, postgres.NewGameRepo(db), postgres.NewPlayerRepo(db), badgr.New(cache))
-	if err != nil {
-		log.Fatal(err)
-	}
+
+	srv := service.New(appCtx, postgres.NewGameRepo(db), postgres.NewPlayerRepo(db), redis.NewGameRepo(cl))
+
 	tokener, err := token.New([]byte(config.Get("PASETO_KEY")), "")
 	if err != nil {
 		log.Fatal(err)
@@ -81,6 +83,20 @@ func getCacher() (*badger.DB, error) {
 		return nil, err
 	}
 	return db, nil
+}
+
+func getRedis(ctx context.Context) (*redis9.Client, error) {
+	opts, err := redis9.ParseURL(config.Get("REDIS_URL"))
+	if err != nil {
+		return nil, err
+	}
+
+	cl := redis9.NewClient(opts)
+	if err := cl.Ping(ctx).Err(); err != nil {
+		return nil, fmt.Errorf("failed to ping redis: %w", err)
+	}
+
+	return cl, nil
 }
 
 func shutdown(s *handler.Handler, done chan<- struct{}) {

@@ -43,6 +43,13 @@ type GameRepository struct {
 	cl *redis9.Client
 }
 
+// NewGameRepo ...
+func NewGameRepo(cl *redis9.Client) *GameRepository {
+	return &GameRepository{
+		cl: cl,
+	}
+}
+
 // CreateGame ...
 func (r GameRepository) CreateGame(ctx context.Context, g *game.Game) error {
 	if g == nil {

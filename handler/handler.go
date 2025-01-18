@@ -56,8 +56,6 @@ type Service interface {
 
 	// Hub ...
 	GetRoom(id uuid.UUID) (*game.Room, bool)
-
-	Stop(context.Context)
 }
 
 // Handler ...
@@ -339,7 +337,6 @@ func (h *Handler) room(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) Stop(ctx context.Context) error {
-	h.srv.Stop(ctx)
 	return h.s.Shutdown(ctx)
 }
 
