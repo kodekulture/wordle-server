@@ -22,8 +22,20 @@ var (
 )
 
 type Game struct {
-	*game.Game
+	Game    *game.Game
 	Players []string `json:"p"`
+}
+
+// MarshalJSON returns JSON value of Game without Sessions and Leaderboards as they already exist in redis.
+func (g Game) MarshalJSON() ([]byte, error) {
+	internal := *g.Game
+	internal.Sessions = nil
+
+	m := map[string]any{
+		"p":    g.Players,
+		"Game": &internal,
+	}
+	return json.Marshal(m)
 }
 
 // GameRepository ...
@@ -89,7 +101,7 @@ func (r GameRepository) DeleteGame(ctx context.Context, gameID uuid.UUID) error 
 	return r.cl.Del(ctx, keys...).Err()
 }
 
-// LoadGame loads full game data and player sessions from storage
+// LoadGame loads full game data and resynced player sessions from storage
 func (r GameRepository) LoadGame(ctx context.Context, gameID uuid.UUID) (*game.Game, error) {
 	rg, err := r.getGame(ctx, gameID)
 	if err != nil {
@@ -144,7 +156,7 @@ func (r GameRepository) getSessions(ctx context.Context, gameID uuid.UUID, playe
 
 		for _, w := range val {
 			var guess word.Word
-			err := json.Unmarshal([]byte(w), &guess)
+			err = json.Unmarshal([]byte(w), &guess)
 			if err != nil {
 				return nil, err
 			}

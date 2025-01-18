@@ -82,8 +82,8 @@ type Game struct {
 	// They serve as fast access areas for game sessions and can be recomputed from
 	// cold/hot storages.
 	// TODO: merge Sessions and Leaderboard
-	Sessions    map[string]*Session `json:"-"`
-	Leaderboard RankBoard           `json:"-"`
+	Sessions    map[string]*Session
+	Leaderboard RankBoard `json:"-"`
 
 	CreatedAt   time.Time
 	StartedAt   *time.Time
