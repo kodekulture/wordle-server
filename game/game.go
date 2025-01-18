@@ -23,8 +23,6 @@ const (
 
 	// MaxGuesses is the maximum number of guesses a player can make
 	MaxGuesses = 6
-
-	// WordLength is the length of the word to be guessed
 )
 
 type RankBoard struct {
@@ -80,10 +78,14 @@ func (r RankBoard) FixPosition(username string) int {
 }
 
 type Game struct {
-	CreatedAt time.Time
-	Sessions  map[string]*Session
-	// There is no leaderboard until the game starts
-	Leaderboard RankBoard `json:"-"`
+	// Sessions and Leaderboard is unserializable to prevent data corruption.
+	// They serve as fast access areas for game sessions and can be recomputed from
+	// cold/hot storages.
+	// TODO: merge Sessions and Leaderboard
+	Sessions    map[string]*Session `json:"-"`
+	Leaderboard RankBoard           `json:"-"`
+
+	CreatedAt   time.Time
 	StartedAt   *time.Time
 	EndedAt     *time.Time
 	Creator     string
@@ -113,6 +115,7 @@ func (g *Game) HasEnded() bool {
 	return g.EndedAt != nil
 }
 
+// New should only be called for new games
 func New(creator string, correctWord word.Word) *Game {
 	return &Game{
 		ID:          uuid.New(),
@@ -151,6 +154,17 @@ func (g *Game) Play(player string, guess *word.Word) (int, error) {
 		}
 	}
 	return offset, nil
+}
+
+// Resync ...
+func (g *Game) Resync() {
+	for _, session := range g.Sessions {
+		session.Resync()
+		if session.Won() {
+			g.finished++
+		}
+	}
+	g.Leaderboard.Resync()
 }
 
 func (g *Game) Players() []string {

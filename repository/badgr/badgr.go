@@ -52,20 +52,15 @@ func (r *HubRepo) Load(conv func(g *game.Game) *game.Room) (map[uuid.UUID]*game.
 			// get value
 			var g game.Game
 			err = item.Value(func(v []byte) error {
-				err := json.Unmarshal(v, &g)
+				err = json.Unmarshal(v, &g)
 				return err
 			})
 			if err != nil {
 				return err
 			}
 
-			// recompute user's best guesses
-			for _, sess := range g.Sessions {
-				sess.Resync()
-			}
-			// recompute leaderboard
 			g.Leaderboard = game.NewRankBoard(g.Sessions)
-			g.Leaderboard.Resync()
+			g.Resync()
 
 			// set value
 			hub[uid] = conv(&g)

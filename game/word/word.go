@@ -2,6 +2,7 @@ package word
 
 import (
 	"database/sql"
+	"encoding/json"
 	"strings"
 )
 
@@ -91,6 +92,11 @@ func (w Word) GreaterThan(other Word) bool {
 	if thisExist != itExist {
 		return thisExist > itExist
 	}
+
+	if !w.PlayedAt.Valid {
+		return false
+	}
+
 	return w.PlayedAt.Time.Before(other.PlayedAt.Time)
 }
 
@@ -144,4 +150,8 @@ func (w *Word) Check(correctWord Word) []LetterStatus {
 
 func (w *Word) String() string {
 	return w.Word
+}
+
+func (w Word) MarshalBinary() ([]byte, error) {
+	return json.Marshal(w)
 }
