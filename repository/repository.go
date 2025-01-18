@@ -44,6 +44,6 @@ type HubBackup interface {
 	Load(converter func(g *game.Game) *game.Room) (hub map[uuid.UUID]*game.Room, err error)
 	// Dump dump the hub data into a file
 	Dump(hub map[uuid.UUID]*game.Room) error
-	// Delete deletes the hub data file
+	// Drop deletes the hub data file
 	Drop() error
 }
