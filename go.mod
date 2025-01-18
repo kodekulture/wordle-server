@@ -15,6 +15,7 @@ require (
 	github.com/lordvidex/errs/v2 v2.0.1
 	github.com/lordvidex/x v0.1.0
 	github.com/o1egl/paseto/v2 v2.1.1
+	github.com/redis/go-redis/v9 v9.7.0
 	github.com/rs/cors v1.11.0
 	github.com/rs/zerolog v1.29.1
 	go.uber.org/mock v0.5.0
@@ -26,6 +27,7 @@ require (
 	github.com/cespare/xxhash/v2 v2.3.0 // indirect
 	github.com/davecgh/go-spew v1.1.1 // indirect
 	github.com/dgraph-io/ristretto v0.1.1 // indirect
+	github.com/dgryski/go-rendezvous v0.0.0-20200823014737-9f7001d12a5f // indirect
 	github.com/dustin/go-humanize v1.0.0 // indirect
 	github.com/golang/glog v1.2.2 // indirect
 	github.com/golang/protobuf v1.5.3 // indirect
