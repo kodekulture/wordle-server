@@ -115,5 +115,6 @@ func New(appCtx context.Context, gr repository.Game, pr repository.Player, h rep
 		coldStorage:  newColdStorage(gr, pr),
 		wordGen:      word.NewLocalGen(),
 		localStorage: newLocalStorage(appCtx),
+		store:        h,
 	}
 }
